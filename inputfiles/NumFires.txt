@@ -1,0 +1,5 @@
+zone	distrib	lambda	param2	min.nfires	max.nfires
+ZA	Possion	2.6	NA	1	2000
+ZB	Possion	2.7	NA	1	300
+ZC	Possion	2.9	NA	1	300
+ZD	Possion	1	NA	1	300
