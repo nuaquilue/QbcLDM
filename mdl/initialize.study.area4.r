@@ -60,10 +60,9 @@ initialize.study.area <- function(lyr, neighborhood=4, plot.raster=T, file.mask.
   # Merge this complete coordinates data frame, with the quebec data frame
   # dim(aux) = 350980 13
   aux <- merge(id.coord, subset(data, select=c(UNIQUE_ID, X_COORD, Y_COORD, UH_REG2, 
-                                 SDOM2, TECO2, TEMPE, PRECI, COMPO, TSD, DEP3, EXCLU,UAF18,DOM,IQS)),
+                                 SDOM2, TECO2, TEMPE, PRECI, COMPO, TSD, DEP3, EXCLU,UAF18,DOM,MATU,CCBIO)),
                by.x=c("x", "y"), by.y=c("X_COORD", "Y_COORD"), all.x=T)
 
-  
   ## exporter un ficher équivalence index et mask pour climat
   # bid <- aux[,1:5] 
   # write.csv(bid, file = "equil.csv")
@@ -87,9 +86,10 @@ initialize.study.area <- function(lyr, neighborhood=4, plot.raster=T, file.mask.
                       TSD = aux$TSD,
                       SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", aux$DEP3)))))),
                       Exclus = aux$EXCLU,
-                      IQS = aux$IQS,
+                      MATU = aux$MATU,
                       CoordX = aux$x,
-                      CoordY = aux$y )  
+                      CoordY = aux$y,
+                      CCBIO = aux$CCBIO )  
   
   # Order 'land' data.frame by cell.indx, so we can assign values of land directly to 
   # a raster looking like as MASK
@@ -147,11 +147,12 @@ initialize.study.area <- function(lyr, neighborhood=4, plot.raster=T, file.mask.
   MASK[] <- land$Precip; Precip <- MASK
   MASK[] <- land$SoilType; SoilType <- MASK
   MASK[] <- land$Exclus; Exclus <- MASK
-  MASK[] <- land$IQS; IQS <- MASK
-    
+  MASK[] <- land$MATU; MATU <- MASK
+  MASK[] <- land$CCBIO; CCBIO <- MASK
+  
   sp.input <- list(FRZone=FRZone, BCDomain=BCDomain, MgmtUnit=MgmtUnit,
                    SppGrp=SppGrp, TSD=TSD, Temp=Temp, Precip=Precip,
-                   SoilType=SoilType, Exclus=Exclus, IQS=IQS) 
+                   SoilType=SoilType, Exclus=Exclus, MATU=MATU, CCBIO=CCBIO) 
   if(plot.raster){
     out.path <- "inputlyrs/asc/"
     writeRaster(FRZone, paste0(out.path, "FRZone.asc"), format="ascii", overwrite=T)

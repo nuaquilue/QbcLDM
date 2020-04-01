@@ -2,7 +2,9 @@
 ###  neighour.spp()
 ###
 ###  Description >  Function that returns the forest composition of a circular 
-###                 neighbourhood of radius R around the target cells
+###                 neighbourhood of radius R around the target cells. The function is
+###                 useful to attribute a forest composition class to cells for which this information
+###                 is not available on forest maps.
 ###                 Called in initialize.study.area
 ###
 ###  Arguments >  
@@ -17,20 +19,14 @@
 ###           of the species in the neighbourhood (one per column)
 ######################################################################################
 
-      # microland=land[, c("cell.indx", "SppGrp", "EcoType", "CoordX", "CoordY")]
-      # target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.indx", "CoordX", "CoordY")]
-      # radius.neigh=10000
-      # km2.pixel=(cell.size/1000)^2
-
-
 neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
   
   # number of species groups (states, including regeneration, water, or non-forests) in the landscape
   nspp <- length(levels(microland$SppGrp))
   
-  # initialize 1 matrix with as many rows as target cells and colums as species
+  # initialize 1 matrix with as many rows as target cells and columns as species
   cells.neigh <- matrix(nrow=nrow(target.cells), ncol=nspp) 
-  # and 1 vector of lenght the number of target cells
+  # and 1 vector of length corresponding to the number of target cells
   target.spp <- numeric(nrow(target.cells))
   
   # Retrieve index of neighbours in a circular neighbourhood of radius
@@ -57,7 +53,7 @@ neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
                                      ifelse(eco.type=="MJ", "BOJ",
                                             ifelse(eco.type=="FE", "ERS", "other"))))
     }
-    else{
+    else {
       id <- sample(1:(nspp-3), 1, replace=FALSE, prob=cells.neigh[i,-c(4,7,9)])
       target.spp[i] <- spp[id]
     }

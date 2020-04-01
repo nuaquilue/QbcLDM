@@ -13,7 +13,7 @@ play.landscape.dyn <- function(){
 
 play.initalize.study.area <- function(){
   rm(list=ls())
-  setwd("C:/Users/boumav/Desktop/QLandscapeDynamics")
+  setwd("C:/Users/boumav/Desktop/QLandscapeDynamics1")
   source("mdl/initialize.study.area4.r")
   lyr <- "inputlyrs/dbf/points_2k2_ll"
   neighborhood <- 4

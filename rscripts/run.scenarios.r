@@ -1,4 +1,4 @@
-########################################################## 
++########################################################## 
 ## Run the LANDSCAPE DYNAMIC MODEL for QUÉBEC for multiple
 ## scenarios with customized parameters
 ########################################################## 
@@ -8,11 +8,22 @@ rm(list = ls())
 
 # Set the working directory 
 
-setwd("C:/Users/boumav/Desktop/QLandscapeDynamics")
+setwd("C:/Users/boumav/Desktop/QLD_V2")
+
+
 
 # Load the model
 source("mdl/define.scenario.r")  
-source("mdl/landscape.dyn5.r")
+source("mdl/landscape.dyn8.r")
+
+
+################################
+##################################
+########### 8 SCENARIOS + 2 baselines
+
+#S1 - With plantation of hardwoods, A posteriori ajustement of harvest level,
+#     salvage 20% of mature stands (low rate)
+#S2 - 
 
 ############################# SCN 01 #############################
 # Clean all data (but not functions) of the workspace
@@ -20,96 +31,254 @@ fun <- unclass(lsf.str())
 toremove <- setdiff(ls(), fun)
 rm(list = c(toremove, 'toremove'))
 # Create a scenario with customized parameters
-scn.name <- "pres8"
+scn.name <- "SC1.WPlant.Post.Lsalv"
 define.scenario(scn.name)
 # New parameters values 
-is.climate.change <- TRUE
+nrun <- 10
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
 time.horizon <- 90 # starting in 2010, stable after 2100
- 
-nrun <- 2
-disturb <- c(TRUE, FALSE, FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori - fonds de réserve
+replanif <- 1  # when 1, timber supply calculation is done at each time step to readjust harvest level
+               # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1 # minimum proportion of mature forest that are set apart 
+                      # for biodiversity conservation purposes
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+                # also a modifyer of the landcape-level fire regime
+enfeuil=0.7 # Corresponds to the proportion of black spruce stands that will be converted to hardwood 
+            # after fire (plantation), in order to reduce the fire risk
+salvage.rate.FMU <- 0.2  # maximum proportion of mature burned stands that will be salvaged when burned
 
-# parametres recupération: pourcentage du feu récupérable(recup_feu), et pourcentage maximal
-# de l'approvisionnement qui peut être constitué de bois de feu (recup_UA)
-hor.plan <- 22
-target.old.pct <- 0.20
-
-# Deux facteurs à décider: replanification (1 = oui, 0 = non)
-# et a.priori (entre 0 et 1)
-
-# a.priori <- 1
-# replanif <- 1
-fire.rate.increase <-  0.005 # rate of increase per year 
-
-# hypothèses de distance de colonisation
-
-#  distances maximales de colonisation3
-radius.buff <-  c(75000,60000,50000,50000,50000) # PET BOJ ERS SAB EPN
-#radius.buff <-  c(15000,12000,10000,10000,10000) # PET BOJ ERS SAB EPN
-
-# nombre de cellules nécéssaires pour que la colonisation soit possible
-nb.buff <- c(1,1,1,1,1) #PET,BOJ,ERS,SAB,EPN
-# persistance des essences: 0 indique qu'elles ne possèdent pas la capacité de 
-# persister lorsque le climat devient trop chaud
-persist <- c(1,1,1,1,1)
 # Write the name of any updated parameter in the following call
-dump(c("is.climate.change", "disturb", "radius.buff", "time.horizon",
-       "nrun","hor.plan","target.old.pct","persist","nb.buff","fire.rate.increase"), 
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 # Run this scenario (count the time it takes)
 system.time(landscape.dyn(scn.name))
 
-#############################
-######## run the 16 scenarios. Parameters are defined in the "output" folders
-######## corresponding to each scenario.
+#############################################################
+# second scenario
+scn.name <- "SC2.Wplant.Prio.Lsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 10
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 0.8  # 0.8 = baisse de 20% a priori
+replanif <- 0
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.7
+salvage.rate.FMU <- 0.2
+
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
+
+#############################################################
+# troisième scenario
+scn.name <- "SC3.NoPlant.Post.Lsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 25
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori
+replanif <- 1
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.0
+salvage.rate.FMU <- 0.2
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
+
+#############################################################
+# quatrième scenario
+scn.name <- "SC4.NoPlant.Prio.Lsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 25
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 0.8  # 0.8 = baisse de 20% a priori
+replanif <- 0
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.0
+salvage.rate.FMU <- 0.2
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
+
+##########################################################
+# cinquième scenario
+scn.name <- "SC5.WPlant.Post.Hsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 5
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori
+replanif <- 1
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.7
+salvage.rate.FMU <- 0.8
+
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
 
 
-system.time(landscape.dyn("SCC.AF.post"))
-system.time(landscape.dyn("SCC.AF.pri"))
-system.time(landscape.dyn("SCC.SF.post"))
+#############################################################
+# sixième scenario
+scn.name <- "SC6.WPlant.Prio.Hsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 5
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 0.8  # 0.8 = baisse de 20% a priori
+replanif <- 0
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.7
+salvage.rate.FMU <- 0.8
 
-system.time(landscape.dyn("CC.SF.post"))
-system.time(landscape.dyn("CC.AF.post"))
-system.time(landscape.dyn("CC.AF.pri"))
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
 
-system.time(landscape.dyn("worst.CC.SF.post"))
-system.time(landscape.dyn("worst.CC.AF.post"))
-system.time(landscape.dyn("worst.CC.AF.pri"))
 
-system.time(landscape.dyn("fireFHarvFMigSpersF"))
-system.time(landscape.dyn("feuTcouTbufCpersF"))
-system.time(landscape.dyn("feuTcouTbufLpersT"))
-system.time(landscape.dyn("feuTcouTbufLpersF"))
-system.time(landscape.dyn("feuTcouFbufCpersT"))
-system.time(landscape.dyn("feuTcouFbufCpersF"))
-system.time(landscape.dyn("feuTcouFbufLpersT"))
-system.time(landscape.dyn("feuTcouFbufLpersF"))
-system.time(landscape.dyn("feuFcouTbufCpersT"))
-system.time(landscape.dyn("feuFcouTbufCpersF"))
-system.time(landscape.dyn("feuFcouTbufLpersT"))
-system.time(landscape.dyn("feuFcouTbufLpersF"))
-system.time(landscape.dyn("feuFcouFbufCpersT"))
-system.time(landscape.dyn("feuFcouFbufCpersF"))
-system.time(landscape.dyn("feuFcouFbufLpersT"))
-system.time(landscape.dyn("feuFcouFbufLpersF"))
+#############################################################
+# septième scenario
+scn.name <- "SC7.NoPlant.Post.Hsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 5
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori
+replanif <- 1
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.0
+salvage.rate.FMU <- 0.8
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","succ.enable","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+system.time(landscape.dyn(scn.name))
 
-system.time(landscape.dyn("feuTcouTbufCpersT"))
-system.time(landscape.dyn("feuTcouTbufCpersF"))
-system.time(landscape.dyn("feuTcouTbufLpersT"))
-system.time(landscape.dyn("feuTcouTbufLpersF"))
-system.time(landscape.dyn("feuTcouFbufCpersT"))
-system.time(landscape.dyn("feuTcouFbufCpersF"))
-system.time(landscape.dyn("feuTcouFbufLpersT"))
-system.time(landscape.dyn("feuTcouFbufLpersF"))
-system.time(landscape.dyn("feuFcouTbufCpersT"))
-system.time(landscape.dyn("feuFcouTbufCpersF"))
-system.time(landscape.dyn("feuFcouTbufLpersT"))
-system.time(landscape.dyn("feuFcouTbufLpersF"))
-system.time(landscape.dyn("feuFcouFbufCpersT"))
-system.time(landscape.dyn("feuFcouFbufCpersF"))
-system.time(landscape.dyn("feuFcouFbufLpersT"))
-system.time(landscape.dyn("feuFcouFbufLpersF"))
+#############################################################
+# huitième scenario
+scn.name <- "SC8.NoPlant.Prio.Hsalv"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 5
+disturb <- c(TRUE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 0.8  # 0.8 = baisse de 20% a priori
+replanif <- 0
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+enfeuil=0.0
+salvage.rate.FMU <- 0.8
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+# Run this scenario (count the time it takes)
+system.time(landscape.dyn(scn.name))
 
-#### run the extra scenario mentionned in discussion
+#############################################################
+# BASELINE 1 - TOTAL PROTECTION
+scn.name <- "SC9.TotProt"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 1
+disturb <- c(FALSE, FALSE , FALSE, TRUE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori
+replanif <- 1
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+salvage.rate.FMU <- 0.8
+enfeuil <- 0.0
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","enfeuil"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+# Run this scenario (count the time it takes)
+system.time(landscape.dyn(scn.name))
 
-system.time(landscape.dyn("barrier"))
+#############################################################
+# BASELINE 2 - No HARVEST
+scn.name <- "SC10.NoHarvProt"
+define.scenario(scn.name)
+# New parameters values 
+nrun <- 1
+disturb <- c(TRUE, FALSE , FALSE, FALSE, TRUE)  # feux, TBE, chablis, coupe totale, coupe partielle 
+# climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
+is.climate.change <- 1
+time.horizon <- 90 # starting in 2010, stable after 2100
+fire.rate.increase <- 0.005 # rate of increase per year 
+a.priori <- 1  # 0.8 = baisse de 20% a priori
+replanif <- 1
+persist <- c(1,1,1,1,1) 
+target.old.pct <- 0.1
+avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
+salvage.rate.FMU <- 0.8
+enfeuil <- 0.0
+# Write the name of any updated parameter in the following call
+dump(c("is.climate.change", "disturb", "time.horizon",
+       "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","enfeuil"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
+# Run this scenario (count the time it takes)
+system.time(landscape.dyn(scn.name))

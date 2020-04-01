@@ -28,7 +28,7 @@ suitability <- function(subland, ThMeanTemp, ThAnnualPrecip, ThSoil,Subopt){
   mprec <- ThAnnualPrecip[,-1]
   msols <- ThSoil[,-1]
   
-  ## plug pour les depots manquants
+  ## patch for missing surficial deposits
   
   subland[is.na(subland$SoilType),]$SoilType <- "T"
   
@@ -49,7 +49,7 @@ suitability <- function(subland, ThMeanTemp, ThAnnualPrecip, ThSoil,Subopt){
     suitab_x[,k+1]  <- pmin(suitability_s)  
     suitab_x2[,k+1] <- pmin(suitability_t2, suitability_p2)  
     
-  }  # sum(is.na(subland$SoilType))
+  }  
   # two output vectors: one for climatic suitability, one for soil suitability
   x <- melt(suitab_x,id=c("cell.indx"))
   names(x) <- c("cell.indx","PotSpp","SuitSoil")
