@@ -47,9 +47,9 @@ disturbance.fire <- function(SPECIES, subland, NFdistrib, FSdistrib, fire.step,
   id.fire <- 0
   prob.sprd <- SPECIES[] # creer un vecteur de la bonne longueur
   
-  vec.fuels <- fuel.types(subland,fuel.types.modif)  #  créer vecteur des fuel types
+  vec.fuels <- fuel.types(subland,fuel.types.modif)  #  cr?er vecteur des fuel types
   # Define the spreading potential for different forest types - uniform if avec.combu == 0
-  # Si avec.combu ==1, les probabilités de brulage tiennent compte de la composition et de l'âge
+  # Si avec.combu ==1, les probabilit?s de brulage tiennent compte de la composition et de l'?ge
   # des peuplements
     if (avec.combu) {
        prob.sprd[!is.na(prob.sprd)] <- vec.fuels
@@ -60,6 +60,10 @@ disturbance.fire <- function(SPECIES, subland, NFdistrib, FSdistrib, fire.step,
   ww <-  aggregate(vec.fuels,  by=list (subland$FRZone), FUN=mean)
   #print(ww)
   
+  ## SOMETHING NEW. DON'T SURE WHO MATHIEU WORKS WITH THIS DF
+  a <- left_join(land, fuel.types.modif, by="FuelType")
+  fuel.types.baseline <- group_by(a, FRZone) %>% mean(x=mean(baseline))
+    
   # Create a random permuation of the Fire Regime Zones 
   fr.zones <- unique(subland$FRZone)
   fr.zones <- sample(fr.zones, length(fr.zones), replace=FALSE)   
@@ -67,6 +71,7 @@ disturbance.fire <- function(SPECIES, subland, NFdistrib, FSdistrib, fire.step,
   #### landscape level change in flammability, by comparing fuel types at time=t and at baseline (t=0)
   
   modif.fuels <- 1+(ww-fuel.types.baseline)/fuel.types.baseline
+  
   
   # Simulate fires for each Zone   zone = fr.zones[3]
   for(zone in fr.zones){

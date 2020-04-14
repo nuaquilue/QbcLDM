@@ -56,45 +56,32 @@ define.scenario <- function(scn.name){
   fire.sizes.file <- "inputfiles/FireSizesEmpiric.txt" 
   NFdistrib <- read.table(fire.regime.file, header = T)
   FSdistrib <- read.table(fire.sizes.file, header = T)
-  fire.rate.increase <- 0 # Increase in fire frequency over the planning horizon (climate change)
-  avec.combu <- FALSE         # Prise en compte des combustibles lors de la propagation des feux
-  fuel.types.modif <- c(0.1, 0.4, 0.95) # modificateur des probabilit?s de brulage
-                                     # pour les combustibles mauvais, moyens et ?lev?s
+  fire.rate.increase <- 0     # Increase in fire frequency over the planning horizon (climate change)
+    # avec.combu <- FALSE         # Prise en compte des combustibles lors de la propagation des feux
+  fuel.types.modif <- data.frame(FuelType=1:3, baseline=c(0.1, 0.4, 0.95)) # Flammability (that modify the burnt probability) of the fuel types
   
   
   ## SPRUCE BUDWORM parameters:  
   sbw.step.fix <- T
   
   
-  ## FOREST MANAGEMENT disturbance definitions
-  #age.mat <- 80           # default number of years for a stand to reach maturity (harvestable)
-  #age.mat.pc <- 30        # default number of years after a partial cut for a stand to become harvestable again
+  ## FOREST MANAGEMENT parameters:
   target.old.pct <- 0.2    # default target proportion of old (>= mature) forests to maintain inside management units
-  diff.prematurite <- 10    # for stands salvaged even if not mature (number of years before maturity)
+  diff.prematurite <- 10   # for stands salvaged even if not mature (number of years before maturity)
   salvage.rate.event <- 1  # maximal proportion of burnt mature forests that can be salvaged realistically 
                            # in a given fire event [0,1]
-  salvage.rate.FMU <- 1  # maximum proportion of salvaged burnt wood allowed in the timber supply in each FMU [0,1]
-  ecocrisis <- FALSE     # presence of economic crises during simulations
-  ecocrisis.freq <- 0.0  # proportion of years affected by an economic crisis (between 0 and 1)
-  hor.plan <- 22 # time horizon for timber supply calculations (periods of 5 years)
-  
+  salvage.rate.FMU <- 1    # maximum proportion of salvaged burnt wood allowed in the timber supply in each FMU [0,1]
+  ecocrisis <- FALSE       # presence of economic crises during simulations
+  ecocrisis.freq <- 0.0    # proportion of years affected by an economic crisis (between 0 and 1)
+  hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years)
   ## Replanning options facing natural disturbances
   a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution nof a buffer 
                  #for attenuation of nat. disturbance impacts on timber supply fluctuations.
   replanif <- 1  # recalculation of AAC level at each time step (1=yes, 0=no). If no, it is calculated only
                  # once, during the first period
   
-  ## VEGETATION DYNAMICS parameters
-  ## Species groups are:  BOJ - Yellow birch
-  ##                      EPN - Black spruce
-  ##                      ERS - Sugar maple
-  ##                      NonFor
-  ##                SAB - Balsam fir
-  ##                
-  # PET - Trembling aspen
-  # 
-  # : post-disturbance regeneration and forest succession
   
+  ## VEGETATION DYNAMICS parameters:
   succ.enable <- 1 # 1 =enable succession after disturbance, 0=composition remains the same
   radius.buff <-  c(75000, 60000, 50000, 50000, 50000) # estimated maximum colonization distance (in m)
   #radius.buff <-  c(15000,12000,10000,10000,10000)  # hypoth?se pessimiste
@@ -104,20 +91,17 @@ define.scenario <- function(scn.name){
                               # (cell level) when the species is outside its optimal climatic condition (1=yes, 0=no)
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
+  suboptimal <- 0.5  # tolerance for sub optimal conditions
   post.fire.reg <- read.table("inputfiles/PostFireReg.txt", header=T)
   post.sbw.reg <- read.table("inputfiles/PostSBWReg.txt", header=T)
-  # post.wind.reg <- read.table("inputfiles/PostWindReg.txt", header=T)
   post.harvest.reg <- read.table("inputfiles/PostHarvestReg.txt", header=T)
   forest.succ <- read.table("inputfiles/ForestSucc.txt", header=T)
-  ThMeanTemp <- read.table("inputfiles/ThMeanTemp.txt", header=T)  
-  ThAnnualPrecip <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
-  ThSoil <- read.table("inputfiles/ThSoil.txt", header=T)  
-  
-  #### tolerance for sub optimal conditions
-  Subopt <- 0.5
+  temp.suitability <- read.table("inputfiles/ThMeanTemp.txt", header=T)  
+  precip.suitability <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
+  soil.suitability <- read.table("inputfiles/ThSoil.txt", header=T)  
   
   
-  # Save all the variables in .r file to be further loaded by landscape.dyn.r
+  # Save all these variables in a .r file to be further loaded by landscape.dyn.r
   if(!file.exists(out.path))
     dir.create(file.path(getwd(), out.path), showWarnings = T) 
   dump(ls(), paste0(out.path, "/scn.def.r"))

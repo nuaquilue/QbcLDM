@@ -10,7 +10,7 @@
 ###  Value >  It saves land dataframe, MASK raster and sp.input list in .rdata files.
 ######################################################################################
 
-read.state.vars <- function(work.path, plot.raster=F){  
+read.state.vars <- function(work.path){  
   
   ## Load required packages and functions 
   suppressPackageStartupMessages({
@@ -92,12 +92,15 @@ read.state.vars <- function(work.path, plot.raster=F){
   ## Make sure that the age classes are presented in 5-year increments
   land$Age <- round(land$Age/time.step)*time.step
   
-  ## 5.4 Modify maturity
+  ## 5.4. Modify maturity
   land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
   land$AgeMatu[is.na(land$AgeMatu) & land$Temp > 1]  <- 60
   land$AgeMatu[is.na(land$AgeMatu)] <- 70
   land$AgeMatu[land$AgeMatu < 60] <- 60
   land$AgeMatu[land$AgeMatu > 100 ] <- 100    
+  
+  ## 5.5. Assign "T" to missing surficial deposits
+  land$SoilType[!is.na(land$SppGrp) & is.na(land$SoilType)] <- "T"
   
   
   ## 6. Initialize other state variables
@@ -108,7 +111,7 @@ read.state.vars <- function(work.path, plot.raster=F){
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$TSDist <- 50
-  land$DType <- 5  # chgcompo.id <- 5 (defined in define.scenario.r)
+  land$DistType <- 5  # chgcompo.id <- 5 (defined in define.scenario.r)
   
   ## 6.2. Initalize fuel types according to their flammability: 
   ## 1 - low, 2 - medium, and 3 - high
@@ -119,20 +122,59 @@ read.state.vars <- function(work.path, plot.raster=F){
   land$FuelType[land$SppGrp %in% c("EPN","SAB") & land$Age>40] <- 3
   
   
-  ## 7. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands) 
-  ## and reset factor's levels
+  ## 7. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
+  ## reset factor's levels, and only eep cells that are not NA
   land[!is.na(land$SppGrp) & land$SppGrp=="Water", -c(1:3)] <- NA
   land[!is.na(land$SoilType) & land$SoilType == "Urb", -c(1:3)] <- NA
   land$SppGrp <- factor(land$SppGrp)      # remove the 'water' level (and the 'rege' level too)
   land$SoilType <- factor(land$SoilType)  # remove the 'urb' level
+    ## Species groups are:  BOJ - Yellow birch
+    ##                      EPN - Black spruce
+    ##                      ERS - Sugar maple
+    ##                      NonFor - Non forest
+    ##                      other                
+    ##                      PET - Trembling aspen
+    ##                      SAB - Balsam fir
   
   
-  ## 8. Save the MASK raster in a .rdata 
+  ## 8. Assign mean precipitation of the 8 neigh cells to those cells with Precip=-9999
+  z <- -9999
+  zcells <- filter(land, !is.na(land$SppGrp) & Temp==z)
+  for(id in zcells$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
+    values <- land$Temp[neighs$nn.idx]
+    values <- values[!is.na(values) & values!=z]
+    if(length(values)>0)
+      zcells$Temp[zcells$cell.id==id] <- mean(values)
+  }
+  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells$Temp
+  zcells2 <- filter(land, !is.na(land$SppGrp) & Temp==z)
+  for(id in zcells2$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells2, cell.id==id) %>% select(x,y), searchtype="priority", k=25)
+    values <- land$Temp[neighs$nn.idx]
+    values <- values[!is.na(values) & values!=z]
+    if(length(values)>0)
+      zcells2$Temp[zcells2$cell.id==id] <- mean(values)
+  }
+  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells2$Temp
+  zcells3 <- filter(land, !is.na(land$SppGrp) & Temp==z)
+  for(id in zcells3$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells3, cell.id==id) %>% select(x,y), searchtype="priority", k=11^2)
+    values <- land$Temp[neighs$nn.idx]
+    values <- values[!is.na(values) & values!=z]
+    if(length(values)>0)
+      zcells3$Temp[zcells3$cell.id==id] <- mean(values)
+  }
+  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells3$Temp
+  zcells4 <- filter(land, !is.na(land$SppGrp) & Temp==z)
+  
+  
+  ## 9. Save the MASK raster in a .rdata 
   MASK[is.na(land$SppGrp)] <- NA
   save(MASK, file="inputlyrs/rdata/mask.rdata")
   
   
-  ## 9. Give raster structure to each state variable to be saved in a layer stack 
+  ## 10. Give raster structure to each state variable to be saved in a layer stack 
   MASK[] <- land$FRZone; FRZone <- MASK
   MASK[] <- land$BCDomain; BCDomain <- MASK
   MASK[] <- land$MgmtUnit; MgmtUnit <- MASK
@@ -150,7 +192,7 @@ read.state.vars <- function(work.path, plot.raster=F){
   save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
     
   
-  ## 10. Keep cells that are not NA and save the 'land' df
+  ## 11. Keep only cells that are not NA and save the 'land' data frame with all state variables
   land <- land[!is.na(land$SppGrp),]
   save(land, file="inputlyrs/rdata/land.rdata")
   

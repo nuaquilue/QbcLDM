@@ -32,6 +32,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/age.by.spp.r")
+  source("mdl/fuel.types.r")
   
   
   ## Load scenario definition (global variables and scenario parameters)
@@ -65,8 +66,17 @@ landscape.dyn <- function(scn.name){
   time.seq <- seq(time.step, max(time.horizon, time.step), time.step)
   
   
-  ## Start to simulate one replicate
-  irun=1   # for testing
+  ## Add baseline flammability for each FuelType
+  land <- left_join(land, fuel.types.modif, by="FuelType")
+  
+  
+  ## Tracking data.frames
+  track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
+  track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
+                                    C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
+  
+  
+  ## Start the simulations
   for(irun in 1:nrun){
     
     ## Load dynamic state variables 
@@ -84,30 +94,28 @@ landscape.dyn <- function(scn.name){
         # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
         # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
         # ref.harv.level <- table(land$MgmtUnit)*0 
+    
+    # fuel.types.baseline <- aggregate(fuel.types(land,fuel.types.modif),  by=list(land$FRZone), FUN=mean)
+    
+    ## Record species distribution at time = 0 per fire zone, and bcdomain % age class
+    track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=0, 
+                              group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id))))
+    track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=0, 
+                              group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20), 
+                              C40=sum(Age<=40), C60=sum(Age<=60), C80=sum(Age<=80), C100=sum(Age<=100), 
+                              Cold=sum(Age>100))))
+      ## SEE WHAT IS THIS!!
+      # suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
+      # cc <- join(land[,c("cell.indx","BCDomain")], suitab, by=c("cell.indx"), type="left", match="all")
+      # count.suit <- table(list(cc$BCDomain, cc$PotSpp, cc$SuitClim))
+      # spp.suit <- data.frame(melt(count.suit[,,1]), melt(count.suit[,,2])[,3], melt(count.suit[,,3])[,3])
+      # names(spp.suit) <- c("BCDomain","Spp","poor","med","good")
+      # spp.suit[,3:5] <- spp.suit[,3:5]*km2.pixel
+      # write.table(data.frame(run=irun, time=t, spp.suit), 
+      #             file = paste0(out.path, "/SuitabilityClasses.txt"),
+      #             append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0))  
       
-    ## Write baseline outputs, i.e. at time = 0
-    if(write.tbl.outputs){
-      t=0
-      suitab <- suitability(subset(land, select=c(cell.indx, Temp, Precip, SoilType)),
-                            ThMeanTemp, ThAnnualPrecip, ThSoil,Subopt) 
-      cc <- join(land[,c("cell.indx","BCDomain")], suitab, by=c("cell.indx"), type="left", match="all")
-      count.suit <- table(list(cc$BCDomain, cc$PotSpp, cc$SuitClim))
-      spp.suit <- data.frame(melt(count.suit[,,1]), melt(count.suit[,,2])[,3], melt(count.suit[,,3])[,3])
-      names(spp.suit) <- c("BCDomain","Spp","poor","med","good")
-      spp.suit[,3:5] <- spp.suit[,3:5]*km2.pixel
-      write.table(data.frame(run=irun, time=t, spp.suit), 
-                  file = paste0(out.path, "/SuitabilityClasses.txt"),
-                  append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0))  
-      write.table(age.by.spp(land, km2.pixel, time.step, irun, t),
-                  file = paste0(out.path, "/AgeBySpp.txt"),
-                  append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
-      write.table(age.by.spp2(land, km2.pixel, time.step, irun, t),
-                  file = paste0(out.path, "/AgeBySpp2.txt"),
-                  append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
-    }
-    fuel.types.baseline <- aggregate(fuel.types(land,fuel.types.modif),  by=list (land$FRZone), FUN=mean)
-    
-    
+
     
     for(t in time.seq){
       
@@ -117,36 +125,33 @@ landscape.dyn <- function(scn.name){
       ## Update climatic variables at each time step
       ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
       ## At t=1 we start at 2010, so the first column to start with is column 4 and then increase at every time.step
-      if(is.climate.change  & t < 95){
+      if(!is.na(clim.scn) & t < 95){
         land$Temp <- unlist(cc.temp[3+which(time.seq==t)], use.names=FALSE)
         land$Precip <- unlist(cc.precip[3+which(time.seq==t)], use.names=FALSE)
       }
-      vec_temp <-land$Temp[land$Temp > -100]
-      print(mean(vec_temp))
-      vec_prec <-land$Precip[land$Precip > -100]
-
-      ###################################### DISTURBANCES #####################################
+      
       ## 1. FIRE
-      if(disturb[1] & t %in% aux.fire.schedule){
-        burnt.cells <- disturbance.fire(SPECIES, subset(land, select=c(cell.indx, FRZone,TSD,SppGrp)), 
-                                        NFdistrib, FSdistrib, fire.step, write.tbl.outputs,
+      burnt.cells <- integer() 
+      if(disturb[1] & t %in% fire.schedule){
+        burnt.cells <- disturbance.fire(land, NFdistrib, FSdistrib, fire.step, write.tbl.outputs,
                                         fire.rate.increase, km2.pixel, irun, t, out.path, 
-                                        out.overwrite = (irun==1 & t==fire.schedule[1]), plot.fires, avec.combu,
-                                        fuel.types.baseline,fuel.types.modif)
-        # update TSF and mark that this distrubance is done
-        land$TSF[land$cell.indx %in% burnt.cells] <- 0                      
-        aux.fire.schedule <- aux.fire.schedule[-1]          
-      }   else {
-        burnt.cells <- integer() 
+                                        out.overwrite = (irun==1 & t==fire.schedule[1]), plot.fires, 
+                                        avec.combu, fuel.types.baseline, fuel.types.modif)
+        # Done with fires
+        land$TSDist[land$cell.id %in% burnt.cells] <- 0
+        land$DistType[land$cell.id %in% burnt.cells] <- fire.id
+        fire.schedule <- fire.schedule[-1]          
       }
       
-      ## 2. SBW - en d?veloppement
+        
+      ## 2. SBW (under development)
       kill.cells <- integer()
-      if(disturb[sbw.id] & t %in% aux.sbw.schedule){
+      if(disturb[sbw.id] & t %in% sbw.schedule){
         kill.cells <- disturbance.sbw(land, severity=1, write.tbl.outputs=T,
                                       km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
-        # update TSF and mark that this distrubance is done
-        land$TSE[land$cell.indx %in% kill.cells] <- 0    
+        # Done with fires
+        land$TSDist[land$cell.id %in% kill.cells] <- 0
+        land$DistType[land$cell.id %in% kill.cells] <- sbw.id
         aux.sbw.schedule <- aux.sbw.schedule[-1]
       } 
       
@@ -223,7 +228,7 @@ landscape.dyn <- function(scn.name){
       
       ## Assess cell suitability according to climate, soils, and tree species
       suitab <- suitability(subset(land, select=c(cell.indx, Temp, Precip, SoilType)),
-                                   ThMeanTemp, ThAnnualPrecip, ThSoil,Subopt) 
+                                   ThMeanTemp, ThAnnualPrecip, ThSoil,suboptimal) 
       
       # save a vector containing initial forest composition, for comparison at the end of for loop
       vec_compo_init <- land$SppGrp
@@ -233,7 +238,7 @@ landscape.dyn <- function(scn.name){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD","Tcomp")], 
                              land[land$cell.indx %in% burnt.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% burnt.cells]  <-  forest.trans(subset(land, select=c(cell.indx, SppGrp), cell.indx %in% burnt.cells), 
-                       subset(post.fire.reg, select=-age.class, age.class=="adult"), buffer, suitab, dtype="B",persist, p.failure, age.seed, Subopt,enfeuil)
+                       subset(post.fire.reg, select=-age.class, age.class=="adult"), buffer, suitab, dtype="B",persist, p.failure, age.seed, suboptimal,enfeuil)
       }
 
       ## 2. SBW
@@ -242,7 +247,7 @@ landscape.dyn <- function(scn.name){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
                              land[land$cell.indx %in% kill.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% kill.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% kill.cells), 
-                                                                  post.sbw.reg, buffer, suitab, dtype="S",persist, p.failure, age.seed, Subopt,enfeuil)
+                                                                  post.sbw.reg, buffer, suitab, dtype="S",persist, p.failure, age.seed, suboptimal,enfeuil)
       }
 
       ## 3. WIND
@@ -252,7 +257,7 @@ landscape.dyn <- function(scn.name){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
                              land[land$cell.indx %in% cc.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% cc.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% cc.cells), 
-                       post.harvest.reg, buffer, suitab, dtype="C",persist, p.failure, age.seed, Subopt,enfeuil)
+                       post.harvest.reg, buffer, suitab, dtype="C",persist, p.failure, age.seed, suboptimal,enfeuil)
       }
 
       
@@ -287,7 +292,7 @@ landscape.dyn <- function(scn.name){
                              land[com.chan.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[com.chan.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp),
                               com.chan.cells), forest.succ, buffer, suitab, dtype="S", 
-                              persist, p.failure, age.seed, Subopt,enfeuil)
+                              persist, p.failure, age.seed, suboptimal,enfeuil)
       }
       
       ## For each cell that changed composition, re-initializeTcomp
