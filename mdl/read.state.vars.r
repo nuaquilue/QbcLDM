@@ -1,0 +1,159 @@
+######################################################################################
+###  read.state.vars()
+###
+###  Description >  Reads the .dbf associated to a shape file with forest stands data
+###                 to initialize the state variables of the Landscape Dynamic model.
+###
+###  Arguments >  
+###     work.path: model's working directory
+###
+###  Value >  It saves land dataframe, MASK raster and sp.input list in .rdata files.
+######################################################################################
+
+read.state.vars <- function(work.path, plot.raster=F){  
+  
+  ## Load required packages and functions 
+  suppressPackageStartupMessages({
+    library(foreign)
+    library(raster)
+    library(tidyverse)
+  })
+  
+  
+  ## Load function to look for spp abundance within a neighbour and select a species for the
+  ## sites in regeneration
+  source("mdl/neighbour.spp.r")
+  
+  
+  ## Model's global parameters
+  time.step <- 5
+  cell.size <- 2000 # in m
+    
+  
+  ## 1. Read data form the .dbf associated to the .shp layer
+  forest.data <- read.dbf(paste0(work.path, "/inputlyrs/dbf/points_2k2_ll.dbf"))
+  forest.data$X_COORD <- round(forest.data$X_COORD, 0)
+  forest.data$Y_COORD <- round(forest.data$Y_COORD, 0)  
+  
+  
+  ## 2. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
+  ## Fix first cell size (in m)
+  MASK <- rasterFromXYZ(data.frame(forest.data[,2:3], z=1), res=c(cell.size, cell.size), digits=0,
+                    crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
+                    +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  
+
+  ## 3. Build a data frame with cell.id, mask values (1, NA) and raster coordinates 
+  ## Then join the forest data 
+  dta <- data.frame(cell.id = 1:ncell(MASK), mask=MASK[], round(coordinates(MASK),0)) %>%
+         left_join(select(forest.data, UNIQUE_ID, X_COORD, Y_COORD, UH_REG2, SDOM2, TECO2, TEMPE, PRECI, 
+                          COMPO, TSD, DEP3, EXCLU,UAF18, DOM, MATU, CCBIO), 
+                   by=c("x"="X_COORD", "y"="Y_COORD"))
+  
+  
+  ## 4. Build the 'land' data frame with forest data and fire regime zone, bioclimatic domain, 
+  ## temperature, precipitation, management unit, species group, time since disturbance,
+  ## type of soil (depot), and type of exclusion (plantation / protected) 
+  land <- data.frame(cell.id = dta$cell.id,
+                     x = dta$x,
+                     y = dta$y,
+                     FRZone = sub("1000", "D", sub("500", "C", sub("250", "B",  sub("150", "A", dta$UH_REG2)))),
+                     BCDomain = ifelse(is.na(substr(dta$DOM,1,1)), NA, paste0("D", substr(dta$DOM,1,1))),
+                     Temp = dta$TEMPE,
+                     Precip = dta$PRECI,
+                     MgmtUnit = dta$UAF18,
+                     SppGrp = sub("BOP", "other", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO))),
+                     EcoType = substr(dta$TECO2,0,2),
+                     Age = dta$TSD,
+                     SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", dta$DEP3)))))),
+                     Exclus = dta$EXCLU,
+                     AgeMatu = dta$MATU,
+                     CCbio = dta$CCBIO )  
+  
+  
+  ## 5. Do some cleaning and customizations at the initial data:
+  ## 5.1. Reclassify regenerating stands according to the composition of the neigbhour and
+  ## the site's ecological type. 
+  land$SppGrp[!is.na(land$SppGrp) & land$SppGrp=="rege"] <- 
+              neighour.spp(select(land, "cell.id", "SppGrp", "EcoType", "x", "y"), 
+              target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")],
+              radius.neigh=10000, km2.pixel=(cell.size/1000)^2)
+  
+  ## 5.2. Remove "EcoType" as it is not anymore needed 
+  land <- select(land, -EcoType)
+  
+  ## 5.3. Clean Age to be suitable for the model
+  land$Age[land$Age==-99] <- -1
+  ## Re-equilibrate the age class distribution of locations with age <= 20 years
+  ## to compensate for a lack of precision in the initial values
+  ## for regenerating stands (due to the state of forest inventories in Québec)
+  land$Age[!is.na(land$Age) & land$Age<=20] <- 
+    sample(c(0,5,10,15,20), sum(!is.na(land$Age) & land$Age<=20), replace=T)
+  ## Make sure that the age classes are presented in 5-year increments
+  land$Age <- round(land$Age/time.step)*time.step
+  
+  ## 5.4 Modify maturity
+  land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
+  land$AgeMatu[is.na(land$AgeMatu) & land$Temp > 1]  <- 60
+  land$AgeMatu[is.na(land$AgeMatu)] <- 70
+  land$AgeMatu[land$AgeMatu < 60] <- 60
+  land$AgeMatu[land$AgeMatu > 100 ] <- 100    
+  
+  
+  ## 6. Initialize other state variables
+  ## 6.1. Initalize the Time since last disturbance and the Type of the last disturbance
+  ## The origin of any disturbance that may have impacted the study area is known.
+  ## So, we assign to TSDist the time since the last change in forest composition (transition to another dominant forest type) 
+  ## The cell can beconsidered potential "source" population for migration and range expansion 
+  ## if this period is >= 50 years.
+  ## This information is not available in current forest inventories, so it is set at 50 years at t=0
+  land$TSDist <- 50
+  land$DType <- 5  # chgcompo.id <- 5 (defined in define.scenario.r)
+  
+  ## 6.2. Initalize fuel types according to their flammability: 
+  ## 1 - low, 2 - medium, and 3 - high
+  land$FuelType <- NA
+  land$FuelType[land$SppGrp %in% c("BOJ","ERS","NonFor","other")] <- 1
+  land$FuelType[land$SppGrp == "PET"] <- 2
+  land$FuelType[land$SppGrp %in% c("EPN","SAB") & land$Age<=40] <- 2
+  land$FuelType[land$SppGrp %in% c("EPN","SAB") & land$Age>40] <- 3
+  
+  
+  ## 7. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands) 
+  ## and reset factor's levels
+  land[!is.na(land$SppGrp) & land$SppGrp=="Water", -c(1:3)] <- NA
+  land[!is.na(land$SoilType) & land$SoilType == "Urb", -c(1:3)] <- NA
+  land$SppGrp <- factor(land$SppGrp)      # remove the 'water' level (and the 'rege' level too)
+  land$SoilType <- factor(land$SoilType)  # remove the 'urb' level
+  
+  
+  ## 8. Save the MASK raster in a .rdata 
+  MASK[is.na(land$SppGrp)] <- NA
+  save(MASK, file="inputlyrs/rdata/mask.rdata")
+  
+  
+  ## 9. Give raster structure to each state variable to be saved in a layer stack 
+  MASK[] <- land$FRZone; FRZone <- MASK
+  MASK[] <- land$BCDomain; BCDomain <- MASK
+  MASK[] <- land$MgmtUnit; MgmtUnit <- MASK
+  MASK[] <- land$SppGrp; SppGrp <- MASK
+  MASK[] <- land$Age; Age <- MASK
+  MASK[] <- land$Temp; Temp <- MASK
+  MASK[] <- land$Precip; Precip <- MASK
+  MASK[] <- land$SoilType; SoilType <- MASK
+  MASK[] <- land$Exclus; Exclus <- MASK
+  MASK[] <- land$AgeMatu; AgeMatu <- MASK
+  MASK[] <- land$CCbio; CCbio <- MASK
+  sp.input <- list(FRZone=FRZone, BCDomain=BCDomain, MgmtUnit=MgmtUnit,
+                   SppGrp=SppGrp, Age=Age, Temp=Temp, Precip=Precip,
+                   SoilType=SoilType, Exclus=Exclus, AgeMatu=AgeMatu, CCbio=CCbio) 
+  save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
+    
+  
+  ## 10. Keep cells that are not NA and save the 'land' df
+  land <- land[!is.na(land$SppGrp),]
+  save(land, file="inputlyrs/rdata/land.rdata")
+  
+}
+
+

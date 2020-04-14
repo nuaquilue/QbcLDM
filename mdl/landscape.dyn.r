@@ -19,22 +19,20 @@
 landscape.dyn <- function(scn.name){
   
   ## Load required packages and functions 
-  library(raster)  
-  library(plyr)
-  library(RANN)
-  library(reshape2)
-  library(SpaDES)  # for 'adj' function
-  source("mdl/fire.spread3.r")
-  source("mdl/disturbance.fire3.r")
+  suppressPackageStartupMessages({
+    library(raster)  
+    library(tidyverse)
+  })
+  source("mdl/fire.spread.r")
+  source("mdl/disturbance.fire.r")
   source("mdl/disturbance.cc.r") 
   source("mdl/disturbance.sbw.r") 
   source("mdl/disturbance.pc.r")   
-  source("mdl/buffer.mig4.r")            
-  source("mdl/forest.transitions2.r")  
+  source("mdl/buffer.mig.r")            
+  source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/age.by.spp.r")
-  source("mdl/age.by.spp2.r")
-  source("mdl/fuel.types.r")
+  
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
@@ -42,98 +40,52 @@ landscape.dyn <- function(scn.name){
   if(file.exists(paste0("outputs/", scn.name, "/scn.custom.def.r")))
     source(paste0("outputs/", scn.name, "/scn.custom.def.r"))
 
+  
   ## Set the directory for writing spatial outputs (create if it does not exist yet) 
   if(write.sp.outputs){      
     if(!file.exists(paste0(out.path, "/asc")))
        dir.create(file.path(getwd(), out.path, "/asc"), showWarnings = F) 
   }
 
-  ## Load static spatial variables: climate change scenarios for temperature 
-  ## and precipitation at the cell level. When is.climate.change
-  ## is false, initial values will be used for the whole simulation.
-  if(is.climate.change>0){
-    if(is.climate.change ==45) {
-     load(file=paste0("inputlyrs/rdata/temp45_ModCan", name.resol, ".rdata"))  
-     load(file=paste0("inputlyrs/rdata/precip45_ModCan", name.resol, ".rdata"))    
-    } else {
-      load(file=paste0("inputlyrs/rdata/temp85_ModCan", name.resol, ".rdata"))  
-      load(file=paste0("inputlyrs/rdata/precip85_ModCan", name.resol, ".rdata"))       
-    }
-    
+  
+  ## Load MASK raster layer of the study area, and compute cell resolution in km2
+  load(file="inputlyrs/rdata/mask.rdata")
+  km2.pixel <- res(MASK)[1] * res(MASK)[2] / 10^6
+  
+  
+  ## Load temperature and precipitation 5-year predictions according to the climatic scenario.
+  ## If climate change is not activated, initial temp and precip will be used for the whole simulation.
+  if(!is.na(clim.scn)){
+    load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_ModCan.rdata")) 
+    load(file=paste0("inputlyrs/rdata/precip_", clim.scn, "_ModCan.rdata"))  
   }
   
 
-  ## Build the time sequence of the processes (shared for all runs). 
-  ## Partial cuts, spruce budworm and windthrow are deactivated in the current version.
-  time.seq <- seq(min.time.step, max(time.horizon, min.time.step), min.time.step)
-  fire.schedule <- seq(fire.step, time.horizon, fire.step)
-  cc.schedule <- seq(cc.step, time.horizon, cc.step)
-  pc.schedule <- seq(cc.step, time.horizon, cc.step)
-  sbw.schedule <- c(5,35,75)
+  ## Build the discrete time sequence according to time.step
+  time.seq <- seq(time.step, max(time.horizon, time.step), time.step)
   
-  ## Start the simulations   
+  
+  ## Start to simulate one replicate
   irun=1   # for testing
   for(irun in 1:nrun){
-    ## Load initial dynamic spatial variables
-    load(file=paste0("inputlyrs/rdata/sp.input", name.resol, ".rdata"))
-    SPECIES <- sp.input[["SppGrp"]]
-    rm(sp.input); gc()
+    
+    ## Load dynamic state variables 
+    load(file="inputlyrs/rdata/land.rdata")
+    
+    ## Set the scehdule of each process
+    fire.schedule <- seq(fire.step, time.horizon, fire.step)
+    cc.schedule <- seq(cc.step, time.horizon, cc.step)
+    pc.schedule <- seq(pc.step, time.horizon, pc.step)
+    if(sbw.step.fix)
+      sbw.schedule <- seq(sbw.step, time.horizon, sbw.step)
+    else
+      sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
 
-        ## Load dynamic state variables at each run
-    ## 1. "MASK" raster layer of the study area,
-    ## 2. "land" data frame with the state variables, and
-    load(file=paste0("inputlyrs/rdata/mask", name.resol, ".rdata"))  
-    load(file=paste0("inputlyrs/rdata/land", name.resol, ".rdata"))
-     land$MATU[is.na(land$MATU)& land$Temp < -1] <- 80
-     land$MATU[is.na(land$MATU)& land$Temp > 1]  <- 60
-     land$MATU[is.na(land$MATU)] <- 70
-     land$MATU[land$MATU < 60] <- 60
-     land$MATU[land$MATU > 100 ] <- 100    
+        # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
+        # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
+        # ref.harv.level <- table(land$MgmtUnit)*0 
       
-    #  "IQS" changé pour "MATU"
-     
-    land$age.mat <- land$MATU
-
-    # pour le cas d'un calcul avec integration a priori du risque de feu, on crée une matrice 
-    # qui contiendra le niveau de récolte à maintenir sur tout l'horizon
-     
-    ref.harv.level <- table(land$MgmtUnit)*0 
-      
-    ## Make sure that the age classes are presented in 5-year increments
-    land$TSD <- round(land$TSD/min.time.step)*min.time.step
-    
-    ## Re-equilibrate the age class distribution of locations with age <= 20 years
-    ## to compensate for a lack of precision in the initial values
-    ## for regenerating stands (due to the state of forest inventories in Québec)
-    land$TSD[land$TSD<=20] <- sample(c(5,10,15,20), size=sum(land$TSD<=20), replace=TRUE)
-
-    ## Initalize the TSF, TSW, TSE, TSC, TSPC state variables at -1,
-    ## to signal that disturbance of origin is not known for these stands at time t=0
-    land$TSF <- land$TSW <- land$TSE <- land$TSC <- -1
-    
-    ## Initialize time since last partial cut. Partial cuts occur with a 40-year rotation. 
-    ## This means that all stands are considered to be available for partial cuts at time t=0.
-    ## NOTE: partial cuts are not activated currently, so this variable and the associated 
-    ## function have no influence on the results.
-    land$TSPC <- 40
-    
-    ## Time since the last change in forest composition (transition to another dominant forest type) 
-    ## The cell can be  considered potential "source" population for migration and range expansion 
-    ## if this period is >= 50 years.
-    ## This information is not available in current forest inventories, and set at 50 years at t=0.
-    
-    land$Tcomp <- 50
-    
-    ## Set the cell resolution in km2
-    km2.pixel <- res(MASK)[1] * res(MASK)[2] / 10^6
-
-    ## Copy the schedulings in auxiliar vectors
-    aux.fire.schedule <- fire.schedule
-    aux.cc.schedule <- cc.schedule
-    aux.pc.schedule <- pc.schedule
-    aux.sbw.schedule <- sbw.schedule
-    
-    ### outputs baseline temps = 0
+    ## Write baseline outputs, i.e. at time = 0
     if(write.tbl.outputs){
       t=0
       suitab <- suitability(subset(land, select=c(cell.indx, Temp, Precip, SoilType)),
@@ -146,18 +98,17 @@ landscape.dyn <- function(scn.name){
       write.table(data.frame(run=irun, time=t, spp.suit), 
                   file = paste0(out.path, "/SuitabilityClasses.txt"),
                   append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0))  
-      write.table(age.by.spp(land, km2.pixel, min.time.step, irun, t),
+      write.table(age.by.spp(land, km2.pixel, time.step, irun, t),
                   file = paste0(out.path, "/AgeBySpp.txt"),
                   append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
-      write.table(age.by.spp2(land, km2.pixel, min.time.step, irun, t),
+      write.table(age.by.spp2(land, km2.pixel, time.step, irun, t),
                   file = paste0(out.path, "/AgeBySpp2.txt"),
                   append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
     }
-
     fuel.types.baseline <- aggregate(fuel.types(land,fuel.types.modif),  by=list (land$FRZone), FUN=mean)
     
-    ## The discrete time sequence is defined by the min.time.step, 5 years by default    
-    t=5  # for testing  t=0
+    
+    
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
@@ -176,7 +127,6 @@ landscape.dyn <- function(scn.name){
 
       ###################################### DISTURBANCES #####################################
       ## 1. FIRE
-      
       if(disturb[1] & t %in% aux.fire.schedule){
         burnt.cells <- disturbance.fire(SPECIES, subset(land, select=c(cell.indx, FRZone,TSD,SppGrp)), 
                                         NFdistrib, FSdistrib, fire.step, write.tbl.outputs,
@@ -190,21 +140,16 @@ landscape.dyn <- function(scn.name){
         burnt.cells <- integer() 
       }
       
-      ## 2. SBW - en développement
-      
-      if(disturb[2] & t %in% aux.sbw.schedule){
+      ## 2. SBW - en d?veloppement
+      kill.cells <- integer()
+      if(disturb[sbw.id] & t %in% aux.sbw.schedule){
         kill.cells <- disturbance.sbw(land, severity=1, write.tbl.outputs=T,
                                       km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
         # update TSF and mark that this distrubance is done
         land$TSE[land$cell.indx %in% kill.cells] <- 0    
         aux.sbw.schedule <- aux.sbw.schedule[-1]
-      } else {
-        kill.cells <- integer()
-        }
+      } 
       
-      
-      ## 3. WIND  - windthrow not included in this version
-      wind.cells <- integer() 
       
       ## 4. CLEAR CUTING
       #if(ecocrisis) {
@@ -231,13 +176,13 @@ landscape.dyn <- function(scn.name){
 
  
       # 
-      ## 5. PARTIAL CUTING - en développement
+      ## 5. PARTIAL CUTING - en d?veloppement
       
-      ## On considère que la rotation de coupe partielle (temps minimal entre deux coupes partielles) 
-      ## correspond à la moitié de l'âge d'admissibilité pour la coupe totale (land$age.mat).
+      ## On consid?re que la rotation de coupe partielle (temps minimal entre deux coupes partielles) 
+      ## correspond ? la moiti? de l'?ge d'admissibilit? pour la coupe totale (land$age.mat).
       
-      ## TSPC = temps depuis coupe partielle. Une valuer de 0 est assignée lorsque le peuplement 
-      ## est affecté par une perturbation sévère
+      ## TSPC = temps depuis coupe partielle. Une valuer de 0 est assign?e lorsque le peuplement 
+      ## est affect? par une perturbation s?v?re
       
       land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       
@@ -253,10 +198,10 @@ landscape.dyn <- function(scn.name){
         pc.cells <- integer() 
       }  
 
-      # a priori - en développement
-      # Lorsque l'option 'a priori' est sélectionnée, le niveau de référence est calculé durant
-      # la première période, en appliquant une pénalité (a.priori). Ce niveau de récolte (ref.harv.level)
-      # en coupe totale est maintenu tel quel durant les périodes subséquentes.
+      # a priori - en d?veloppement
+      # Lorsque l'option 'a priori' est s?lectionn?e, le niveau de r?f?rence est calcul? durant
+      # la premi?re p?riode, en appliquant une p?nalit? (a.priori). Ce niveau de r?colte (ref.harv.level)
+      # en coupe totale est maintenu tel quel durant les p?riodes subs?quentes.
       
           if (t==5) {
               ref.harv.level    <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
@@ -316,19 +261,19 @@ landscape.dyn <- function(scn.name){
       ## We don't do that at the end of each disturbance because we need to know the original 
       ## TSD for certain processes, no matter what disturbance has happened that time step
       
-      #### POUR LA TORDEUSE: on laisse une période de 10 ans pour la récupération 
-      #### (pré-récupération en fait)
+      #### POUR LA TORDEUSE: on laisse une p?riode de 10 ans pour la r?cup?ration 
+      #### (pr?-r?cup?ration en fait)
       
       kill.cells <- land$cell.indx[land$TSE == 5]  
       
       land$TSD[land$cell.indx %in% c(burnt.cells, kill.cells, wind.cells, cc.cells)] <- 0
           
-      ## Aging = increment Time Since Disturbances by min.time.step but upper truncated 
-      land$TSD[land$TSD > -1] <- pmin.int(land$TSD[land$TSD > -1] + min.time.step, 250)
-      land$TSF[land$TSF > -1] <- pmin.int(land$TSF[land$TSF > -1] + min.time.step, 250)
-      land$TSC[land$TSC > -1] <- pmin.int(land$TSC[land$TSC > -1] + min.time.step, 250) 
-      land$TSE[land$TSE > -1] <- pmin.int(land$TSE[land$TSE > -1] + min.time.step, 250) 
-      land$TSPC[land$TSPC > -1] <- pmin.int(land$TSPC[land$TSPC > -1] + min.time.step, 250) 
+      ## Aging = increment Time Since Disturbances by time.step but upper truncated 
+      land$TSD[land$TSD > -1] <- pmin.int(land$TSD[land$TSD > -1] + time.step, 250)
+      land$TSF[land$TSF > -1] <- pmin.int(land$TSF[land$TSF > -1] + time.step, 250)
+      land$TSC[land$TSC > -1] <- pmin.int(land$TSC[land$TSC > -1] + time.step, 250) 
+      land$TSE[land$TSE > -1] <- pmin.int(land$TSE[land$TSE > -1] + time.step, 250) 
+      land$TSPC[land$TSPC > -1] <- pmin.int(land$TSPC[land$TSPC > -1] + time.step, 250) 
 
       ###################
       ## Succession of tree spp at every 40 years starting at TSD = 70
@@ -347,7 +292,7 @@ landscape.dyn <- function(scn.name){
       
       ## For each cell that changed composition, re-initializeTcomp
       land$Tcomp[land$SppGrp != vec_compo_init] <- 0
-      land$Tcomp <- land$Tcomp + min.time.step
+      land$Tcomp <- land$Tcomp + time.step
       
       ## For each cell that changes composition, reset TSD at x years before maturity
       ## to account for the fact that a major change in species dominance is
@@ -372,10 +317,10 @@ landscape.dyn <- function(scn.name){
         write.table(data.frame(run=irun, time=t, spp.suit), 
                     file = paste0(out.path, "/SuitabilityClasses.txt"),
                     append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0))  
-        write.table(age.by.spp(land, km2.pixel, min.time.step, irun, t),
+        write.table(age.by.spp(land, km2.pixel, time.step, irun, t),
                     file = paste0(out.path, "/AgeBySpp.txt"),
                     append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
-        write.table(age.by.spp2(land, km2.pixel, min.time.step, irun, t),
+        write.table(age.by.spp2(land, km2.pixel, time.step, irun, t),
                     file = paste0(out.path, "/AgeBySpp2.txt"),
                     append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0)) 
                     }

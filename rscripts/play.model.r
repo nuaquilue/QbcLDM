@@ -1,25 +1,28 @@
 play.landscape.dyn <- function(){
-  setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
-  #C:\Users\boumav\Desktop\LandscapeDynamics2\rscripts
-  scn.name <- "Test02"
-  # set the scenario
+  # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
+  setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r")
-  define.scenario(scn.name)
-  # run the model
   source("mdl/landscape.dyn.r")  
+  # Set the scenario and run the model
+  scn.name <- "Test01"
+  define.scenario(scn.name)
   landscape.dyn(scn.name)  
 }
 
 
-play.initalize.study.area <- function(){
+play.read.state.vars <- function(){
   rm(list=ls())
-  setwd("C:/Users/boumav/Desktop/QLandscapeDynamics1")
-  source("mdl/initialize.study.area4.r")
-  lyr <- "inputlyrs/dbf/points_2k2_ll"
-  neighborhood <- 4
-  #initialize.study.area(lyr, neighborhood, plot.raster=T)
-  initialize.study.area(lyr, neighborhood, plot.raster=T, file.mask.layer=NULL,
-  file.land.df=NULL, file.buff=NULL, file.neighs.ft=NULL, file.neighs.fn=NULL, file.sp.input=NULL)
+  # work.path <- "C:/Users/boumav/Desktop/QLandscapeDynamics1"
+  work.path <- "C:/work/qbcmod/QbcLDM"
+  source("mdl/read.state.vars.r")
+  read.state.vars(work.path)
+  ## To write as ascii raster the input layers
+  load("inputlyrs/rdata/sp.input.rdata")
+  writeRaster(sp.input$FRZone, "inputlyrs/asc/FRZone.asc", format="ascii", overwrite=T)
+  writeRaster(sp.input$BCDomain, "inputlyrs/asc/BCDomain.asc", format="ascii", overwrite=T)
+  writeRaster(sp.input$MgmtUnit, "inputlyrs/asc/MgmtUnit.asc", format="ascii", overwrite=T)    
+  writeRaster(sp.input$SppGrp, "inputlyrs/asc/SppGrp_t0.asc", format="ascii", overwrite=T)    
+  writeRaster(sp.input$TSD, "inputlyrs/asc/TSD_t0.asc", format="ascii", overwrite=T)    
 }
 
 

@@ -8,18 +8,20 @@
 ###                 Called in initialize.study.area
 ###
 ###  Arguments >  
-###   microland : data frame with the cell.indx, SppGrp, CoordX, and Coord Y
+###   microland : data frame with the cell.id, SppGrp, CoordX, and Coord Y
 ###   target.cells : vector of cells to find the buffer around them
 ###   radius.neigh : radius in m of the circular neighbourhood to be draw around the target cells
 ###   km2.pixel <- size in km2 of the raster pixels
 ###
 ###  Details > 
 ###
-###  Value >  Matrix with the cell.indx for target.cells (in rows) and the abundance of 
+###  Value >  Matrix with the cell.id for target.cells (in rows) and the abundance of 
 ###           of the species in the neighbourhood (one per column)
 ######################################################################################
 
 neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
+  
+  library(RANN)
   
   # number of species groups (states, including regeneration, water, or non-forests) in the landscape
   nspp <- length(levels(microland$SppGrp))
@@ -33,7 +35,7 @@ neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
   # radius.buff for each target cell
   # WARNING: the returned index is row.index instead of cell.index !!!
   incells <- ceiling((pi*radius.neigh^2)/(km2.pixel*10^6))
-  list.cell.neigh <- nn2(microland[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
+  list.cell.neigh <- nn2(microland[,c("x","y")], target.cells[,c("x","y")], 
                          k=incells, searchtype='priority')
   nn.indx <- list.cell.neigh[[1]]
   rm(list.cell.neigh)
@@ -47,7 +49,7 @@ neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
     ## then choose a species id for each target cell according to the abundance in the neighbourhood.
     ## If no species are available, then assign NonFor
     if(sum(cells.neigh[i,-c(4, 7, 9)])==0){
-      eco.type <- microland$EcoType[microland$cell.indx==target.cells$cell.indx[i]]  
+      eco.type <- microland$EcoType[microland$cell.id==target.cells$cell.id[i]]  
       target.spp[i] <- ifelse(eco.type=="RE" | eco.type=="ME", "EPN",
                               ifelse(eco.type=="RS" | eco.type=="MS", "SAB",
                                      ifelse(eco.type=="MJ", "BOJ",

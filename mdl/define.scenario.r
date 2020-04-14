@@ -15,63 +15,56 @@
 
 define.scenario <- function(scn.name){
 
-  ## Output directory (do not never change that, please!)
+  ## Output directory (do not never change this, please!)
   out.path <- paste0("outputs/", scn.name)
+
+  ## Time lenght in years of a model simulation
+  time.horizon <- 100
   
-  ## Name of the input data according to the Spatial resolution 
-  name.resol <- ""
+  ## Time step
+  time.step <- 5
+  
+  ## Number of runs 
+  nrun <- 1
   
   ## Flags to write spatial and tabular output data
   write.sp.outputs <- TRUE
   write.tbl.outputs <- TRUE
   plot.fires <- FALSE
   
-  ## Time lenght (in years) of a model simulation
-  time.horizon <- 100
+  ## Processes of the model included (TRUE-IN our FALSE-OUT),
+  ## Partial cuts and spruce budworm are deactivated in the current version.
+  processes <- c(TRUE,  # 1. Fire
+                 FALSE, # 2. Spruce budworm
+                 TRUE,  # 4. Clear cut
+                 FALSE)  # 5. Partial cut
+                 
+  ## Processes' identificator and recurrence (in years) 
+  fire.id <- 1; fire.step <- 5
+  sbw.id <- 2; sbw.step <- 30
+  cc.id <- 3; cc.step <- 5
+  pc.id <- 4; pc.step <- 5
+  chgcompo.id <- 5
   
-  ## Number of runs (i.e. replicas)
-  nrun <- 1
   
-  ## Whether Climate Change applies
-  is.climate.change <- TRUE
-
-  ## Select the natural disturbances affecting the area: 
-  # fire, sbw, windthrow, clear cut, partial cut 
-  disturb <- c(TRUE, TRUE, TRUE, TRUE, TRUE)
+  ## CLIMATE CHANGE parameters
+  clim.scn <- NA # or "rcp45" or "rcp85"
   
-  ## Fix the recurrence (in years) of each disturbance  
-  ## 1. Fire
-  fire.step <- 5
-  ## 2. SBW
-  # sbw.fix <- TRUE     # if FALSE, both recurrence and severity are stochastic (set in landscape.dyn.r)
-  # sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
-  # sbw.severity <- rep(NULL, length(sbw.schedule))
-  ## 3. Wind
-  # wind.step <- 20
-  ## 4.Clearcut
-  cc.step <- 5
-  ## 5. Partialcut
-  # pc.step <- 5
   
-  ## The minimum time step is the lowest common denominator of the above time steps
-  min.time.step <- 5
-  
-  ## FIRE disturbance definitions: distributions of fire regime per FRZone
+  ## FIRE parameters: distributions of fire regime per FRZone
   fire.regime.file <- "inputfiles/NumFires.txt"
   fire.sizes.file <- "inputfiles/FireSizesEmpiric.txt" 
   NFdistrib <- read.table(fire.regime.file, header = T)
   FSdistrib <- read.table(fire.sizes.file, header = T)
-  fire.rate.increase <- 0 # increase in fire frequency over the planning horizon (climate change)
-  avec.combu <- 0  # Prise en compte des combustibles lors de la propagation des feux
-  fuel.types.modif <- c(0.1,0.4,0.95) # modificateur des probabilités de brulage
-                                     # pour les combustibles mauvais, moyens et élevés
+  fire.rate.increase <- 0 # Increase in fire frequency over the planning horizon (climate change)
+  avec.combu <- FALSE         # Prise en compte des combustibles lors de la propagation des feux
+  fuel.types.modif <- c(0.1, 0.4, 0.95) # modificateur des probabilit?s de brulage
+                                     # pour les combustibles mauvais, moyens et ?lev?s
   
-  ## SPRUCE BUDWORM disturbance definitions: probability of tree mortality following SBW defoliation
-  # sbw.mortality <- read.table("inputfiles/SBWmortality.txt", header=T)
-
-  ## WIND disturbance definitions
-  # wind.cycle <- read.table("inputfiles/WindCycle.txt", header=T)
-  # wind.cycle$target.land <- wind.step/wind.cycle$cycle
+  
+  ## SPRUCE BUDWORM parameters:  
+  sbw.step.fix <- T
+  
   
   ## FOREST MANAGEMENT disturbance definitions
   #age.mat <- 80           # default number of years for a stand to reach maturity (harvestable)
@@ -91,11 +84,20 @@ define.scenario <- function(scn.name){
   replanif <- 1  # recalculation of AAC level at each time step (1=yes, 0=no). If no, it is calculated only
                  # once, during the first period
   
-  ## VEGETATION DYNAMICS: post-disturbance regeneration and forest succession
-  ## Species are PET - Trembling aspen, BOJ - Yellow birch, ERS - Sugar maple, SAB - Balsam fir, EPN - Black spruce
+  ## VEGETATION DYNAMICS parameters
+  ## Species groups are:  BOJ - Yellow birch
+  ##                      EPN - Black spruce
+  ##                      ERS - Sugar maple
+  ##                      NonFor
+  ##                SAB - Balsam fir
+  ##                
+  # PET - Trembling aspen
+  # 
+  # : post-disturbance regeneration and forest succession
+  
   succ.enable <- 1 # 1 =enable succession after disturbance, 0=composition remains the same
   radius.buff <-  c(75000, 60000, 50000, 50000, 50000) # estimated maximum colonization distance (in m)
-  #radius.buff <-  c(15000,12000,10000,10000,10000)  # hypothèse pessimiste
+  #radius.buff <-  c(15000,12000,10000,10000,10000)  # hypoth?se pessimiste
   nb.buff <- c(1,1,1,1,1)     # minimum number of source cells within the colonization distance for
                               # to enable colonization
   persist <- c(1,1,1,1,1)     # it indicates whether we allow the transition probability to remain high locally
