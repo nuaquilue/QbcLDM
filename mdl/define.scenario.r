@@ -19,7 +19,8 @@ define.scenario <- function(scn.name){
   out.path <- paste0("outputs/", scn.name)
 
   ## Time lenght in years of a model simulation
-  time.horizon <- 100
+  time.horizon <- 2095-2010  # 18 time steps of 5 years, it covers the period 2010-2099.
+  year.ini <- 2010
   
   ## Time step
   time.step <- 5
@@ -29,7 +30,6 @@ define.scenario <- function(scn.name){
   
   ## Flags to write spatial and tabular output data
   write.sp.outputs <- TRUE
-  write.tbl.outputs <- TRUE
   plot.fires <- FALSE
   
   ## Processes of the model included (TRUE-IN our FALSE-OUT),

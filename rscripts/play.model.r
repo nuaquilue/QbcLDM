@@ -1,17 +1,28 @@
 debugg <- function(){
   rm(list=ls())
+  library(sp); library(raster); library(tidyverse)
   setwd("C:/work/qbcmod/QbcLDM")
-  source("mdl/define.scenario.r")
-  source("mdl/landscape.dyn.r")  
+  source("mdl/define.scenario.r");  source("mdl/landscape.dyn.r");  source("mdl/fire.spread.r")
+  source("mdl/disturbance.fire.r");   source("mdl/disturbance.cc.r");   source("mdl/disturbance.sbw.r") 
+  source("mdl/disturbance.pc.r");   source("mdl/buffer.mig.r"); source("mdl/forest.transitions.r")  
+  source("mdl/suitability.r") 
   scn.name <- "Test01"
   define.scenario(scn.name)
   ## From landscape.dyn()
   source(paste0("outputs/", scn.name, "/scn.def.r"))
   load(file="inputlyrs/rdata/mask.rdata")
   km2.pixel <- res(MASK)[1] * res(MASK)[2] / 10^6
-  irun=1   # for testing
+  time.seq <- seq(time.step, max(time.horizon, time.step), time.step)
+  clim.scn <- "rcp85"
   load(file="inputlyrs/rdata/land.rdata")
   land <- left_join(land, fuel.types.modif, by="FuelType")
+  track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
+  track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
+                                    C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
+  track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
+  load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_ModCan.rdata")) 
+  load(file=paste0("inputlyrs/rdata/precip_", clim.scn, "_ModCan.rdata"))  
+  irun=1  
   t=0
   
 }
