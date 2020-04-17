@@ -5,19 +5,13 @@
 ###                 Called in landscape.dyn
 ###
 ###  Arguments >  
-###   SPECIES : raster of the study area with the species groups
-###   subland : appropriate selection fo the data frame of the state variables
-###   NFdistrib : data frame of the number of fire per period by fire regime zone
-###   FSdistrib : data frame of the fire sizes distribution by fire regime zone
-###   fire.step : number of years each time step represents
-###   write.tbl.outputs : if TRUE
+###   land : appropriate selection fo the data frame of the state variables
+###   file.num.fires : data frame of the number of fire per period by fire regime zone
+###   file.fire.sizes : data frame of the fire sizes distribution by fire regime zone
 ###   fire.rate.increase : Rate of increase of number of fire through time (climate change)
+###   baseline.fuel : number of years each time step represents
+###   fuel.types.modif : number of years each time step represents
 ###   km2.pixel : number of km2 per pixel on the grid 
-###   irun : the current replica (used when writing results)
-###   t : the current time step  (used when writing results)
-###   out.path : directory path to save output text files
-###   out.overwrite : if TRUE the output text files are overwritten 
-###   plot.fires : plot fire perimeters in ascii format
 ###
 ###  Details > For each fire regime zone, the number of fires and their sizes are derived
 ###   from the input distributions. Fire spreads from random ignition points until target
@@ -26,164 +20,172 @@
 ###  Value >  A vector of the indexes of the burnt cells.
 ######################################################################################
 
-# subland <- subset(land, select=c(cell.indx, FRZone, TSD,SppGrp))
 
-disturbance.fire <- function(SPECIES, subland, NFdistrib, FSdistrib, fire.step,
-                             write.tbl.outputs=T,fire.rate.increase, km2.pixel=km2.pixel, irun=1, t, out.path=NULL, 
-                             out.overwrite=T, plot.fires=FALSE, avec.combu,fuel.types.baseline,
-                             fuel.types.modif){
+wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase, 
+                      baseline.fuel, fuel.types.modif, km2.pixel, t){
 
-  # Silence
+  ## Tracking
+  cat("Wildfires", "\n"); tic("  t")
   options(warn=-1)
   
-  # Initialize empty vector for the future burned cells in the current time step
-  burnt.cells <- numeric(0)
-
-  # Initialize empty vector to save the id.fires and plot it as a raster
-  if(plot.fires)
-    val <- vector("integer", ncell(SPECIES))
+  ## Function to select items not in a vector
+  `%notin%` <- Negate(`%in%`)
   
-  # Track the fires
-  id.fire <- 0
-  prob.sprd <- SPECIES[] # creer un vecteur de la bonne longueur
+  ## Read and load input data
+  load("inputlyrs/rdata/pigni.rdata")
+  dist.num.fires <- read.table(file.num.fires, header = T)
+  dist.fire.size <- read.table(file.fire.sizes, header = T)
   
-  vec.fuels <- fuel.types(subland,fuel.types.modif)  #  cr?er vecteur des fuel types
-  # Define the spreading potential for different forest types - uniform if avec.combu == 0
-  # Si avec.combu ==1, les probabilit?s de brulage tiennent compte de la composition et de l'?ge
-  # des peuplements
-    if (avec.combu) {
-       prob.sprd[!is.na(prob.sprd)] <- vec.fuels
-      } else {
-      prob.sprd[!is.na(prob.sprd)] <- runif(length(!is.na(prob.sprd)),0.1,0.8) # 0.2 ??
-       }
-
-  ww <-  aggregate(vec.fuels,  by=list (subland$FRZone), FUN=mean)
-  #print(ww)
+  ## Wind direction between neigbours
+  ## Wind direction is coded as 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
+  default.neigh <- data.frame(x=c(-1,1,2900,-2900,2899,-2901,2901,-2899),
+                              windir=c(270,90,180,0,225,315,135,45),
+                              dist=1000*c(2,2,2,2,sqrt(8),sqrt(8),sqrt(8),sqrt(8)))
+  default.nneigh <- nrow(default.neigh)
   
-  ## SOMETHING NEW. DON'T SURE WHO MATHIEU WORKS WITH THIS DF
-  a <- left_join(land, fuel.types.modif, by="FuelType")
-  fuel.types.baseline <- group_by(a, FRZone) %>% mean(x=mean(baseline))
-    
-  # Create a random permuation of the Fire Regime Zones 
-  fr.zones <- unique(subland$FRZone)
+  ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
+  ## Then assign baseline flammability to each type
+  fuels <- fuel.type(land, fuel.types.modif)
+  current.fuels <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
+  modif.fuels <- current.fuels
+  modif.fuels$x <- 1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
+  
+  ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
+  fr.zones <- unique(land$FRZone)
   fr.zones <- sample(fr.zones, length(fr.zones), replace=FALSE)   
-
-  #### landscape level change in flammability, by comparing fuel types at time=t and at baseline (t=0)
   
-  modif.fuels <- 1+(ww-fuel.types.baseline)/fuel.types.baseline
+  ## Initialize empty vector to track burned cells 
+  burnt.cells <- visit.cells <-  numeric(0)
   
+  ## Reset TrackFires data frame each run
+  track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
+  track.fuels <- data.frame(zone=NA)
   
-  # Simulate fires for each Zone   zone = fr.zones[3]
-  for(zone in fr.zones){
-
+  ## Start burning until annual target area per fire zone is not reached
+  fire.id <- 0
+  for(izone in fr.zones){
+    
     # Determine number of fires per zone  - considering fire rate increase with time 
-
-      num.fires <- NFdistrib$lambda[NFdistrib$zone==zone] * fire.step * (1+(t*fire.rate.increase))
+    num.fires <- round(rpois(1, dist.num.fires$lambda[dist.num.fires$zone==izone]) * (1+(t*fire.rate.increase)) *
+                        modif.fuels$x[modif.fuels$zone==izone])
+    
+    # Limit number of fires to a predefined range [1, max.nfires]
+    num.fires <- pmax(1, pmin(num.fires, dist.num.fires$max.nfires[dist.num.fires$zone==izone]))
+    
+    ## Spreading of each fire
+    for(i in 1:num.fires){
       
-      if (avec.combu) {
-        num.fires <- round((modif.fuels[ww$Group.1 == zone,2]  * num.fires))
-      }
+      ## ID for each fire event
+      fire.id <- fire.id+1
       
-    # Limit number of fires to a predefined range [min.nfires, max.nfires]
-    if(num.fires < NFdistrib$min.nfires[NFdistrib$zone==zone] * fire.step) 
-      num.fires <- NFdistrib$min.nfires[NFdistrib$zone==zone] * fire.step
-    if(num.fires > NFdistrib$max.nfires[NFdistrib$zone==zone] * fire.step) 
-      num.fires <- NFdistrib$max.nfires[NFdistrib$zone==zone] * fire.step
-       
-    # Determine potential size of these fires (i.e. the target area) in km2
-    # Fire size is drawn from an empirical discrete distribution defined by 
-    # classes of 50 km2 
-    
-    fire.sizes <- round(
-                  50*sample(1:nrow(FSdistrib), num.fires, replace=T, p=FSdistrib[, which(levels(fr.zones)==zone)+2]) -
-                  runif(num.fires,0,50), 0)
-  
-    ###############################
-    #############  Change fire sizes to account for changes in landscape-level flammability
-
-    if (avec.combu) {
-      fire.sizes <- (modif.fuels[ww$Group.1 == zone,2]  * fire.sizes)
-    }
-  
-    #################
-    
-    
-    # Transform fire sizes (in km2) in fire extents (in pixels), some fires will lose area
-    # while others will gain... on average the difference should be 0
-    fire.extents <- round(fire.sizes/km2.pixel)
-    # Select num.fires ignitions points within the zone 
-    ignis <- sample(subland$cell.indx[subland$FRZone==zone], num.fires)
-
-    SPREADPROB <- raster(val=prob.sprd, ext=extent(SPECIES), crs=NA, res=res(SPECIES))
-
-    # Simulate the spreading of each individual fire
-    fires <- fire.spread(SPECIES, loci=ignis, spreadProb=SPREADPROB, mask=NA, 
-                         maxSize=fire.extents, directions=8L, iterations=10000L, 
-                         spreadProbLater=NA_real_)
-    
-    
-    ################################
-    #################################
-    
-    sub.brul <- subland[subland$cell.indx %in% fires[["perims"]]$cell.indx,]
-    sub.brul2 <- table(fuel.types(sub.brul,fuel.types.modif))
-    sub.brul3 <-  round(sub.brul2 / sum(sub.brul2[] ),2)
-    f.t.z <- fuel.types(subland[subland$FRZone==zone,],fuel.types.modif)
-    f.t.z2 <- table(f.t.z)
-    f.t.z3<-  round(f.t.z2 / sum(f.t.z2[] ),2)
-    #print(paste("zone",zone,"brul.z",f.t.z3,"brulis",sub.brul3))
-    ########################################  
-    ### REPORT: write the results by fire regime zone: 
-    if(write.tbl.outputs){      
+      ## Determine potential area of the fires (i.e. the target area) in km2
+      ## Fire size is drawn from an empirical discrete distribution defined in classes of 50 km2 
+      ## Change fire sizes to account for changes in landscape-level flammability
+      ## VERIFY THE IMPACT OF LANDSCAPE FLAMMABILITY ON FIRE SIZE. I dont' like to much
+      fire.area <- (50*sample(1:nrow(dist.fire.size), 1, replace=F,
+                               p=dist.fire.size[, which(levels(fr.zones)==izone)+2]) -
+                   runif(1,0,50) ) * modif.fuels$x[modif.fuels$zone==izone]
       
-      # Id of fire, target and burnt area 
-      write.table(data.frame(run=irun, time=t, zone=zone, 
-                             id.fire=(id.fire+1):(id.fire+nrow(fires$area)), 
-                             target.area = (fires[["areas"]]$target)*km2.pixel, 
-                             burnt.area = (fires[["areas"]]$burnt)*km2.pixel),
-                  file=paste0(out.path, "/Fires.txt"), sep="\t", quote=FALSE,
-                  append=(!out.overwrite | (id.fire != 0)),
-                  row.names=FALSE, col.names=(out.overwrite & id.fire == 0) )   
+      # Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
+      # while others will gain... on average the difference should be 0
+      fire.size.target <- round(fire.area/km2.pixel)
       
-      # Number of target fires, num of actual fires, target burnt area and effectivele burnt area
-      write.table(data.frame(run=irun, time=t, zone=zone, target.n.fires=num.fires, 
-                             n.fires=nrow(fires$areas), 
-                             target.area=sum(fires[["areas"]]$target)*km2.pixel, 
-                             burnt.area=sum(fires[["areas"]]$burnt)*km2.pixel,
-                             fire.cycle = round(((sum(subland$FRZone==zone)*5)/(sum(fires[["areas"]]$burnt)))), # cycle
-                             ind.combust = round(ww$x[ww$Group.1 == zone],2)),   
-                  file=paste0(out.path, "/FireRegime.txt"), sep="\t", quote=FALSE,
-                  append=(!out.overwrite | (zone != fr.zones[1])),
-                  row.names=FALSE, col.names=(out.overwrite & zone == fr.zones[1]) )
-      ### statistique spread prob
-      write.table(data.frame(run=irun, time=t, zone=zone, brulcl1=sub.brul3[1], brulcl2=sub.brul3[2]
-                             , brulcl3=sub.brul3[3], zon.cl1=f.t.z3[1],zon.cl12=f.t.z3[2], zon.cl3=f.t.z3[3]),   
-                  file=paste0(out.path, "/Spread.txt"), sep="\t", quote=FALSE,
-                  append=(!out.overwrite | (zone != fr.zones[1])),
-                  row.names=FALSE, col.names=(out.overwrite & zone == fr.zones[1]) )
-    }
-
-    # Update id.fire
-    id.fire <- id.fire + nrow(fires$areas)
+      ## Select an ignition point according to probability of ignition
+      igni.id <- sample(pigni$cell.id, 1, replace=F, pigni$p)
+      
+      ## Assign the main wind direction according to the fire spread type
+      ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
+      # S 10%, SW 30%, W 60%  
+      fire.wind <- sample(c(180,225,270), 1, replace=F, p=c(10,30,60))
+      
+      ## Initialize tracking variables
+      fire.front <- igni.id
+      pxlburnt <- 1  
+      burnt.cells <- c(burnt.cells, igni.id)
+      visit.cells <- c(visit.cells, igni.id)
+      
+      ## Tracking
+      fire.step <- 1
+      # track.spread <- rbind(track.spread, data.frame(fire.id=fire.id, cell.id=igni.id, step=fire.step, 
+      #                                                spp=land$SppGrp[land$cell.id==igni.id],
+      #                                                wind=0, flam=0, sr=1, pb=1, burning=1))
+      
+      
+      ## Start speading from active cells (i.e. the fire front)
+      while(pxlburnt<fire.size.target){
+        
+        ## Build a data frame with the theoretical 8 (=default.nneigh=) neighbours of cells in fire.front, 
+        ## Add the wind direction and the distance.
+        ## Filter neighbours in the study area and that have not been visited yet
+        ## Then, look for their default flammability
+        neigh.id <- data.frame(cell.id=rep(fire.front, each=default.nneigh)+rep(default.neigh$x, length(fire.front)),
+                               source.id=rep(fire.front, each=default.nneigh),
+                               dist=rep(default.neigh$dist, length(fire.front)),
+                               windir=rep(default.neigh$windir, length(fire.front)) ) %>%
+                    filter(cell.id %in% land$cell.id) %>% filter(cell.id %notin% visit.cells) %>%
+                    left_join(fuels, by="cell.id") %>% 
+                    mutate(flam=wflam*baseline, 
+                           wind = wwind * (ifelse(abs(windir-fire.wind)>180, 
+                                        360-abs(windir-fire.wind), abs(windir-fire.wind)))/180,
+                           sr=wind+flam, pb=1+rpb*log(sr)) 
+        neigh.id  
+        
+        ## Get spread rate andcompute probability of burning and actual burning state (T or F):
+        sprd.rate <- group_by(neigh.id, cell.id) %>% 
+                     summarize(step=fire.step, sr=max(sr), pb=max(pb)) 
+        sprd.rate$burning <- runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
+        sprd.rate
+         
+        # if(nrow(sprd.rate)>0)
+        #   track.spread <- rbind(track.spread, data.frame(fire.id=fire.id, sprd.rate))
+        # 
+        ## If at least there's a burning cell, continue, otherwise, stop
+        if(!any(sprd.rate$burning))
+          break
+        
+        ## Mark the cells burnt and visit, and select the new fire front
+        ## 'mad' -> median absolute deviation
+        burnt.cells <- c(burnt.cells, sprd.rate$cell.id[sprd.rate$burning])
+        visit.cells <- c(visit.cells, sprd.rate$cell.id)
+        exclude.th <- min(max(sprd.rate$sr)-0.005, 
+                          rnorm(1,mean(sprd.rate$sr[sprd.rate$burning])-mad(sprd.rate$sr[sprd.rate$burning])/2,
+                                mad(sprd.rate$sr[sprd.rate$burning])))
+        fire.front <- sprd.rate$cell.id[sprd.rate$burning & sprd.rate$sr>=exclude.th]
+        
+        ## Increase area burnt and fire.step 
+        pxlburnt <- pxlburnt + sum(sprd.rate$burning)
+        fire.step <- fire.step+1
+        
+        ## In the case, there are no cells in the fire front, stop trying to burn.
+        ## This happens when no cells have burnt in the current spreading step
+        if(length(fire.front)==0)
+          break
+        
+      } # while 'fire'
+      
+      ## Write info about this fire
+      track.fire <- rbind(track.fire, data.frame(zone=izone, fire.id, wind=fire.wind,
+                                                 atarget=fire.size.target*km2.pixel, aburnt=pxlburnt*km2.pixel))
+      cat(paste("Zone:", izone, "Fire:", fire.id, "- aTarget:", fire.size.target*km2.pixel, "- aBurnt:", pxlburnt*km2.pixel), "\n")
+      
+    }  #for 'num.fires'
+  } #for 'zone'
+  
     
-    # Add the indices of the burnt cells to the global vector
-    burnt.cells <- c(burnt.cells, fires[["perims"]]$cell.indx)
-    # Update vector to plot fire perimeters
-    if(plot.fires)
-      val[fires[["perims"]]$cell.indx] <- fires[["perims"]]$fire.id + max(val)
-    
-  } # zone  
+  ## TRACKING
+  track.fire <- track.fire[-1,]; track.fire
+  track.regime <- group_by(track.fire, zone) %>% summarize(nfires=length(atarget), atarget=sum(atarget), aburnt=sum(aburnt)) %>%
+                  left_join(group_by(land, FRZone) %>% summarize(atot=length(FRZone)), by=c("zone"="FRZone")) %>%
+                  mutate(fire.cycle=round(time.step*atot/aburnt)) %>%
+                  left_join(current.fuels, by="zone") %>% mutate(indx.combust=x) %>% select(-atot, -x)
+  fuels.burnt <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif)
+  track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=4, ncol=3),
+                 table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=4, ncol=3)) %>%
+                select(-Var1.1, -Var2.1)
+  names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
   
+  toc()
+  ## Return the index of burnt cells and the tracking data.frames
+  return(list(burnt.cells=burnt.cells, track.regime=track.regime, track.fire=track.fire))  #, track.sprd=track.sprd
   
-  
-  
-  ### Plot fires perimeters
-  if(plot.fires){
-    IDBURNT <- raster(val=val, ext=extent(SPECIES), res=res(SPECIES), crs=NA)
-    out.raster <- paste0(out.path, "/asc/Fires_", irun, "_", t, ".asc")
-    writeRaster(IDBURNT, out.raster, format="ascii", overwrite=T)
-  }
-
-  ## Return the index of burnt cells
-  return(burnt.cells) 
 }

@@ -36,7 +36,7 @@ define.scenario <- function(scn.name){
   ## Partial cuts and spruce budworm are deactivated in the current version.
   processes <- c(TRUE,  # 1. Fire
                  FALSE, # 2. Spruce budworm
-                 TRUE,  # 4. Clear cut
+                 FALSE,  # 4. Clear cut
                  FALSE)  # 5. Partial cut
                  
   ## Processes' identificator and recurrence (in years) 
@@ -52,14 +52,17 @@ define.scenario <- function(scn.name){
   
   
   ## FIRE parameters: distributions of fire regime per FRZone
-  fire.regime.file <- "inputfiles/NumFires.txt"
-  fire.sizes.file <- "inputfiles/FireSizesEmpiric.txt" 
-  NFdistrib <- read.table(fire.regime.file, header = T)
-  FSdistrib <- read.table(fire.sizes.file, header = T)
-  fire.rate.increase <- 0     # Increase in fire frequency over the planning horizon (climate change)
-    # avec.combu <- FALSE         # Prise en compte des combustibles lors de la propagation des feux
-  fuel.types.modif <- data.frame(FuelType=1:3, baseline=c(0.1, 0.4, 0.95)) # Flammability (that modify the burnt probability) of the fuel types
-  
+  file.num.fires <- "inputfiles/NumFires.txt"
+  file.fire.sizes <- "inputfiles/FireSizesEmpiric.txt" 
+  fire.rate.increase <- 0.1     # Increase in fire frequency over the planning horizon (climate change)
+  fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
+                     # Flammability (that modify the burnt probability) of the fuel types
+                     # If baseline=c(1,1,1) no effect of fuel.types on fire spreading/burning
+  wflam <- 0.7 # Weight spp flammability in fire spread rate
+  wwind <- 0.3 # Weight wind in fire spread rate
+  rpb <- 0.3
+  pb.upper.th <- 0.8 # prob.burning >= th --> cell always burns
+  pb.lower.th <- 0.1 # prob.burning < th --> cell never burns
   
   ## SPRUCE BUDWORM parameters:  
   sbw.step.fix <- T

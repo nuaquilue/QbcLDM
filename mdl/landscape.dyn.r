@@ -13,7 +13,7 @@
 ###          'write.tbl.outputs' and 'write.sp.outputs' are TRUE respectively.  
 ######################################################################################
 
-landscape.dyn <- function(){
+landscape.dyn <- function(scn.name){
   
   ## Load required packages and functions 
   suppressPackageStartupMessages({
@@ -28,19 +28,19 @@ landscape.dyn <- function(){
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
-  
+  source("mdl/fuel.type.r")  
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
-  source(paste0(out.path, "/scn.def.r"))
-  if(file.exists(paste0(out.path, "/scn.custom.def.r")))
-      source(paste0(out.path, "/scn.custom.def.r"))
+  source(paste0("outputs/", scn.name, "/scn.def.r"))
+  if(file.exists(paste0("outputs/", scn.name, "/scn.custom.def.r")))
+      source(paste0("outputs/", scn.name, "/scn.custom.def.r"))
 
   
   ## Set the directory for writing spatial outputs (create if it does not exist yet) 
   if(write.sp.outputs){      
-    if(!file.exists(paste0(out.path, "/asc")))
-       dir.create(file.path(getwd(), out.path, "/asc"), showWarnings = F) 
+    if(!file.exists(paste0(out.path, "/lyr")))
+       dir.create(file.path(getwd(), out.path, "/lyr"), showWarnings = F) 
   }
 
   
@@ -62,16 +62,22 @@ landscape.dyn <- function(){
   time.seq <- seq(0, time.horizon, time.step) 
   
   
-  ## Add baseline flammability for each FuelType
-  # fuel.types.baseline <- aggregate(fuel.types(land,fuel.types.modif),  by=list(land$FRZone), FUN=mean)
-  land <- left_join(land, fuel.types.modif, by="FuelType")
+  ## Calculate the baseline fuel (fuel at the fire regime zone in t=0)
+  load(file="inputlyrs/rdata/land.rdata")
+  baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
   
   
-  ## Tracking data.frames
+  ## Tracking data.frames  ( review description ARE WRONG!!)
+  ## 1. Area of each species within poor, medium, or good climatic-soil suitability levels
+  ## 2. The distribution of Ages Class per domain
+  ## 3. The area affected by the disturbances in each Biolcimatic Domain
   track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
   track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
                                     C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
+  track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
+                             aburnt=NA, fire.cycle=NA, indx.combust=NA)
+  track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
   
   
   ## Start the simulations
@@ -80,7 +86,7 @@ landscape.dyn <- function(){
     ## Load dynamic state variables 
     load(file="inputlyrs/rdata/land.rdata")
     
-    ## Set the scehdule of each process
+    ## Set the scheduling of the processes
     fire.schedule <- seq(0, time.horizon, fire.step)
     cc.schedule <- seq(0, time.horizon, cc.step)
     pc.schedule <- seq(0, time.horizon, pc.step)
@@ -107,7 +113,7 @@ landscape.dyn <- function(){
 
     # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
     # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
-    # ref.harv.level <- table(land$MgmtUnit)*0 
+    ref.harv.level <- table(land$MgmtUnit)*0 
     
     for(t in time.seq){
       
@@ -126,11 +132,15 @@ landscape.dyn <- function(){
       
       ## 1. FIRE
       burnt.cells <- integer() 
-      if(disturb[fire.id] & t %in% fire.schedule){
-        burnt.cells <- disturbance.fire(land, NFdistrib, FSdistrib, fire.step, write.tbl.outputs,
-                                        fire.rate.increase, km2.pixel, irun, t, out.path, 
-                                        out.overwrite = (irun==1 & t==fire.schedule[1]), plot.fires, 
-                                        avec.combu, fuel.types.baseline, fuel.types.modif)
+      if(processes[fire.id] & t %in% fire.schedule){
+        fire.out <- wildfires(land, file.num.fires, file.fire.sizes, fire.rate.increase, 
+                              baseline.fuel, fuel.types.modif, km2.pixel, t)
+        burnt.cells <- fire.out[[1]]
+        if(nrow(fire.out[[3]])>0){
+          track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
+          track.fires <- rbind(track.fires, data.frame(run=irun, year=t+year.ini, fire.out[[3]]))
+          # track.sprd <- rbind(track.sprd, data.frame(run=irun, year=t+year.ini, fire.out[[4]]))
+        }
         # Done with fires
         land$TSDist[land$cell.id %in% burnt.cells] <- 0
         land$DistType[land$cell.id %in% burnt.cells] <- fire.id
@@ -140,7 +150,7 @@ landscape.dyn <- function(){
         
       ## 2. SBW (under development)
       kill.cells <- integer()
-      if(disturb[sbw.id] & t %in% sbw.schedule){
+      if(processes[sbw.id] & t %in% sbw.schedule){
         kill.cells <- disturbance.sbw(land, severity=1, write.tbl.outputs=T,
                                       km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
         # Done with outbreak
@@ -152,7 +162,7 @@ landscape.dyn <- function(){
       
       ## 3. CLEAR CUTING
       cc.cells <- integer()
-      if(disturb[cc.id] & t %in% cc.schedule){
+      if(processes[cc.id] & t %in% cc.schedule){
         cc.cells <- disturbance.cc(subset(land, select=c(cell.indx, MgmtUnit, SppGrp, Exclus, TSD, TSE, 
                                                          TSF,age.mat,TSPC,Temp), (SppGrp!="NonFor" & !is.na(MgmtUnit))), 
                                    cc.step, target.old.pct, diff.prematurite, hor.plan,
@@ -171,9 +181,10 @@ landscape.dyn <- function(){
       ## correspond ? la moiti? de l'?ge d'admissibilit? pour la coupe totale (land$age.mat).
       ## TSPC = temps depuis coupe partielle. Une valuer de 0 est assign?e lorsque le peuplement 
       ## est affect? par une perturbation s?v?re
-      land$TSPC[land$TSD < (land$age.mat/2)] <- 0
+      
+      # REVIEW land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       pc.cells <- integer()
-      if(disturb[pc.id] & t %in% pc.schedule){
+      if(processes[pc.id] & t %in% pc.schedule){
         pc.cells <- disturbance.pc(subset(land, select=c(cell.indx, MgmtUnit, SppGrp, Exclus, TSD, TSE, TSF,age.mat,TSPC), (SppGrp!="NonFor" & !is.na(MgmtUnit))), 
                                    cc.step, hor.plan,
                                    write.tbl.outputs, km2.pixel, irun, t, out.path, 
@@ -209,14 +220,13 @@ landscape.dyn <- function(){
       ## and on the age of the stand at the time the disturbance occurred  
       
       ## Assess cell suitability according to climate, soils, and tree species
-      suitab <- suitability(subset(land, select=c(cell.indx, Temp, Precip, SoilType)),
-                                   ThMeanTemp, ThAnnualPrecip, ThSoil,suboptimal) 
+      suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       
       # save a vector containing initial forest composition, for comparison at the end of for loop
       vec_compo_init <- land$SppGrp
       
       ## 1. FIRE
-      if(disturb[fire.id] & !is_empty(burnt.cells)){
+      if(processes[fire.id] & !is_empty(burnt.cells) & FALSE){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD","Tcomp")], 
                              land[land$cell.indx %in% burnt.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% burnt.cells]  <-  forest.trans(subset(land, select=c(cell.indx, SppGrp), cell.indx %in% burnt.cells), 
@@ -224,7 +234,7 @@ landscape.dyn <- function(){
       }
 
       ## 2. SBW
-      if(disturb[sbw.ikd] & !is_empty(kill.cells)){
+      if(processes[sbw.id] & !is_empty(kill.cells)){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
                              land[land$cell.indx %in% kill.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% kill.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% kill.cells), 
@@ -232,7 +242,7 @@ landscape.dyn <- function(){
       }
 
       ## 4. CLEAR CUTTING
-      if(disturb[cc.id] & !is_empty(cc.cells)){
+      if(processes[cc.id] & !is_empty(cc.cells)){
         buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
                              land[land$cell.indx %in% cc.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
         land$SppGrp[land$cell.indx %in% cc.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% cc.cells), 
@@ -244,36 +254,27 @@ landscape.dyn <- function(){
       ## First update the age of all disturbed cells in this time step (set to 0 TSD):
       ## We don't do that at the end of each disturbance because we need to know the original 
       ## TSD for certain processes, no matter what disturbance has happened that time step
-      
-      #### POUR LA TORDEUSE: on laisse une p?riode de 10 ans pour la r?cup?ration 
-      #### (pr?-r?cup?ration en fait)
-      
-      kill.cells <- land$cell.indx[land$TSE == 5]  
-      
-      land$TSD[land$cell.indx %in% c(burnt.cells, kill.cells, wind.cells, cc.cells)] <- 0
-          
-      ## Aging = increment Time Since Disturbances by time.step but upper truncated 
-      land$TSD[land$TSD > -1] <- pmin.int(land$TSD[land$TSD > -1] + time.step, 250)
-      land$TSF[land$TSF > -1] <- pmin.int(land$TSF[land$TSF > -1] + time.step, 250)
-      land$TSC[land$TSC > -1] <- pmin.int(land$TSC[land$TSC > -1] + time.step, 250) 
-      land$TSE[land$TSE > -1] <- pmin.int(land$TSE[land$TSE > -1] + time.step, 250) 
-      land$TSPC[land$TSPC > -1] <- pmin.int(land$TSPC[land$TSPC > -1] + time.step, 250) 
+      # land$TSD[land$cell.indx %in% c(burnt.cells, kill.cells, wind.cells, cc.cells)] <- 0
+      #     
+      # ## Aging = increment Time Since Disturbances by time.step but upper truncated 
+      # land$TSD[land$TSD > -1] <- pmin.int(land$TSD[land$TSD > -1] + time.step, 250)
+      # land$TSF[land$TSF > -1] <- pmin.int(land$TSF[land$TSF > -1] + time.step, 250)
+      # land$TSC[land$TSC > -1] <- pmin.int(land$TSC[land$TSC > -1] + time.step, 250) 
+      # land$TSE[land$TSE > -1] <- pmin.int(land$TSE[land$TSE > -1] + time.step, 250) 
+      # land$TSPC[land$TSPC > -1] <- pmin.int(land$TSPC[land$TSPC > -1] + time.step, 250) 
 
       ###################
       ## Succession of tree spp at every 40 years starting at TSD = 70
-      
       # id cells undergoing succession during time step t
-      
-      com.chan.cells <- ((land$TSD - land$age.mat) %in% seq(0,300,40)) & (land$Tcomp >= 40)
-      
-      if(sum(com.chan.cells)>0 & succ.enable) {
-        buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD", "Tcomp")],
-                             land[com.chan.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
-        land$SppGrp[com.chan.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp),
-                              com.chan.cells), forest.succ, buffer, suitab, dtype="S", 
-                              persist, p.failure, age.seed, suboptimal,enfeuil)
-      }
-      
+      com.chan.cells <- ((land$Age - land$age.mat) %in% seq(0,300,40)) & (land$Tcomp >= 40)
+      # if(sum(com.chan.cells)>0 & succ.enable) {
+      #   buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD", "Tcomp")],
+      #                        land[com.chan.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
+      #   land$SppGrp[com.chan.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp),
+      #                         com.chan.cells), forest.succ, buffer, suitab, dtype="S", 
+      #                         persist, p.failure, age.seed, suboptimal,enfeuil)
+      # }
+      # 
       ## For each cell that changed composition, re-initializeTcomp
       land$Tcomp[land$SppGrp != vec_compo_init] <- 0
       land$Tcomp <- land$Tcomp + time.step
@@ -281,32 +282,24 @@ landscape.dyn <- function(){
       ## For each cell that changes composition, reset TSD at x years before maturity
       ## to account for the fact that a major change in species dominance is
       ## generaly due to significant mortality in the overstory
-      
       new.age <- land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] - 10
       land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] <- new.age
       
-      ## Update spatial variable accounting for species distribution
-      SPECIES[land$cell.indx] <- land$SppGrp
       
+      ## At each time step, plot maps of DisturbanceTypes 
+      if(write.sp.outputs){
+        MAP <- MASK
+        cat("... writing output layers", "\n")
+        # nfire <- sum(track.fire$year==t, na.rm=T)
+        # sizes <- filter(track.fire, year==t) %>% group_by(swc, fire.id) %>% summarise(ab=aburnt.highintens+aburnt.lowintens)
+        # Ignitions' cell.id 
+        # igni.id <- burnt.cells[c(1,cumsum(sizes$ab)[1:(nfire-1)]+1)] 
+        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==0)  ## 0 will be time.step
+        # MAP[igni.id] <- 9
+        writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
         
-      ## Spatial outputs
-      if(write.sp.outputs &  irun==1  ){ # 
-        par(mfrow=c(1,1), oma=c(4, 2, 2, 2),mar=c(1,2,4,0.3))
-        #MASK[!is.na(MASK)] <- land$SppGrp
-        #writeRaster(MASK, paste0(out.path, "/asc/Spp_", irun, "_", t, ".asc"), format="ascii", overwrite=T)
-        #pdf(paste0(out.path, "/asc/JPEG", irun, "_", t, ".pdf"))
-        #image(MASK, col=c("blue","darkgreen","red","grey","grey","yellow","palegreen"),
-        #         axes=FALSE, ylab='',xlab='') 
-        #dev.off()
-        #MASK[!is.na(MASK)] <- as.factor(ifelse(land$TSF< 10,2))
-        #image(MASK,col=c("grey","red"))
-        #writeRaster(MASK, paste0(out.path, "/asc/TSD_", irun, "_", t, ".asc"), format="ascii", overwrite=T)      
-        #MASK[!is.na(MASK)] <- as.factor(ifelse(land$TSF == 5,"R","V"))
-        #image(MASK,col=c("red","grey"),axes=FALSE, ylab='',xlab='')
-        #writeRaster(MASK, paste0(out.path, "/asc/TSD_", irun, "_", t, ".asc"), format="ascii", overwrite=T)  
-        #text(2010+t,x=450000,y=200000,cex=2.5)
-        #dev.print(pdf, paste0(out.path, "/asc/gif_feu", t/5, ".pdf"))
-      }  
+          
+      }
       
     } # t
   } # irun
@@ -315,20 +308,10 @@ landscape.dyn <- function(){
   cat("... writing outputs", "\n")
   write.table(track.spp.frzone[-1,], paste0(out.path, "/SppByFRZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
   
-    # cc <- join(land[,c("cell.indx","BCDomain")], suitab, by=c("cell.indx"), type="left", match="all")
-    # count.suit <- table(list(cc$BCDomain, cc$PotSpp, cc$SuitClim))
-    # spp.suit <- data.frame(melt(count.suit[,,1]), melt(count.suit[,,2])[,3], melt(count.suit[,,3])[,3])
-    # names(spp.suit) <- c("BCDomain","Spp","poor","med","good")
-    # spp.suit[,3:5] <- spp.suit[,3:5]*km2.pixel
-    # write.table(data.frame(run=irun, time=t, spp.suit), 
-    #             file = paste0(out.path, "/SuitabilityClasses.txt"),
-    #             append=!(irun==1 & t==0), quote=FALSE, sep="\t", row.names=FALSE, col.names=(irun==1 & t==0))  
-    # 
-  ####################################### REPORTING #######################################
-  ## 1. Area of each species within poor, medium, or good climatic-soil suitability levels
-  ## 2. The distribution of Ages Class per domain
-  ## 3. The area affected by the disturbances in each Biolcimatic Domain
   
 } 
 

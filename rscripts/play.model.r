@@ -1,11 +1,12 @@
 debugg <- function(){
   rm(list=ls())
+  out.path <- "outputs/Test01"
   library(sp); library(raster); library(tidyverse)
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r");  source("mdl/landscape.dyn.r");  source("mdl/fire.spread.r")
   source("mdl/disturbance.fire.r");   source("mdl/disturbance.cc.r");   source("mdl/disturbance.sbw.r") 
   source("mdl/disturbance.pc.r");   source("mdl/buffer.mig.r"); source("mdl/forest.transitions.r")  
-  source("mdl/suitability.r") 
+  source("mdl/suitability.r"); source("mdl/fuel.type.r")  
   scn.name <- "Test01"
   define.scenario(scn.name)
   ## From landscape.dyn()
@@ -15,15 +16,37 @@ debugg <- function(){
   time.seq <- seq(time.step, max(time.horizon, time.step), time.step)
   clim.scn <- "rcp85"
   load(file="inputlyrs/rdata/land.rdata")
-  land <- left_join(land, fuel.types.modif, by="FuelType")
+  baseline.fuel <- group_by(fuel.type(land,fuel.types.modif), zone) %>% summarize(x=mean(baseline))
   track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
   track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
                                     C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
+  fire.schedule <- seq(0, time.horizon, fire.step)
+  cc.schedule <- seq(0, time.horizon, cc.step)
+  pc.schedule <- seq(0, time.horizon, pc.step)
+  sbw.schedule <- seq(sbw.step, time.horizon, sbw.step)
   load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_ModCan.rdata")) 
   load(file=paste0("inputlyrs/rdata/precip_", clim.scn, "_ModCan.rdata"))  
   irun=1  
   t=0
+  processes <- c(T, F, F, F)
+  
+  
+  ## FROM DISTURBANCE.FIRE
+  `%notin%` <- Negate(`%in%`)
+  load("inputlyrs/rdata/pigni.rdata")
+  dist.num.fires <- read.table(file.num.fires, header = T)
+  dist.fire.size <- read.table(file.fire.sizes, header = T)
+  track.fire <- data.frame(year=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
+  default.neigh <- data.frame(x=c(-1,1,2900,-2900,2899,-2901,2901,-2899,-2,2,5800,-5800),
+                              windir=c(270,90,180,0,225,315,135,45,270,90,180,0),
+                              dist=c(100,100,100,100,141.421,141.421,141.421,141.421,200,200,200,200))
+  default.nneigh <- nrow(default.neigh)
+  modif.fuels <- group_by(fuel.type(land,fuel.types.modif), FRZone) %>% summarize(x=mean(baseline))
+  modif.fuels$x <- 1+(modif.fuels$x-baseline.fuel$x)/baseline.fuel$x
+  burnt.cells <- numeric(0)
+  fire.id <- 0
+  
   
 }
 

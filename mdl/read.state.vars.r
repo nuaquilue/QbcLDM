@@ -104,7 +104,7 @@ read.state.vars <- function(work.path){
   
   
   ## 6. Initialize other state variables
-  ## 6.1. Initalize the Time since last disturbance and the Type of the last disturbance
+  ## Initalize the Time since last disturbance and the Type of the last disturbance
   ## The origin of any disturbance that may have impacted the study area is known.
   ## So, we assign to TSDist the time since the last change in forest composition (transition to another dominant forest type) 
   ## The cell can beconsidered potential "source" population for migration and range expansion 
@@ -112,14 +112,6 @@ read.state.vars <- function(work.path){
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$TSDist <- 50
   land$DistType <- 5  # chgcompo.id <- 5 (defined in define.scenario.r)
-  
-  ## 6.2. Initalize fuel types according to their flammability: 
-  ## 1 - low, 2 - medium, and 3 - high
-  land$FuelType <- NA
-  land$FuelType[land$SppGrp %in% c("BOJ","ERS","NonFor","other")] <- 1
-  land$FuelType[land$SppGrp == "PET"] <- 2
-  land$FuelType[land$SppGrp %in% c("EPN","SAB") & land$Age<=40] <- 2
-  land$FuelType[land$SppGrp %in% c("EPN","SAB") & land$Age>40] <- 3
   
   
   ## 7. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
