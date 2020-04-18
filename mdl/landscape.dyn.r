@@ -17,11 +17,11 @@ landscape.dyn <- function(scn.name){
   
   ## Load required packages and functions 
   suppressPackageStartupMessages({
+    library(tictoc)
     library(raster)  
     library(tidyverse)
   })
-  source("mdl/fire.spread.r")
-  source("mdl/disturbance.fire.r")
+  source("mdl/wildfires.r")
   source("mdl/disturbance.cc.r") 
   source("mdl/disturbance.sbw.r") 
   source("mdl/disturbance.pc.r")   
@@ -78,6 +78,7 @@ landscape.dyn <- function(scn.name){
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
+  track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
   
   
   ## Start the simulations
@@ -109,11 +110,13 @@ landscape.dyn <- function(scn.name){
            group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
                                                     med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
     track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=year.ini, aux))
+    rm(suitab); rm(aux)
       
 
     # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
     # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
     ref.harv.level <- table(land$MgmtUnit)*0 
+    
     
     for(t in time.seq){
       
@@ -139,7 +142,7 @@ landscape.dyn <- function(scn.name){
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
           track.fires <- rbind(track.fires, data.frame(run=irun, year=t+year.ini, fire.out[[3]]))
-          # track.sprd <- rbind(track.sprd, data.frame(run=irun, year=t+year.ini, fire.out[[4]]))
+          track.fuels <- rbind(track.fuels, data.frame(run=irun, year=t+year.ini, fire.out[[4]]))
         }
         # Done with fires
         land$TSDist[land$cell.id %in% burnt.cells] <- 0
@@ -285,6 +288,7 @@ landscape.dyn <- function(scn.name){
       new.age <- land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] - 10
       land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] <- new.age
       
+      land$TSDist <- land$TSDist + time.step
       
       ## At each time step, plot maps of DisturbanceTypes 
       if(write.sp.outputs){
@@ -294,7 +298,7 @@ landscape.dyn <- function(scn.name){
         # sizes <- filter(track.fire, year==t) %>% group_by(swc, fire.id) %>% summarise(ab=aburnt.highintens+aburnt.lowintens)
         # Ignitions' cell.id 
         # igni.id <- burnt.cells[c(1,cumsum(sizes$ab)[1:(nfire-1)]+1)] 
-        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==0)  ## 0 will be time.step
+        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  ## 0 will be time.step
         # MAP[igni.id] <- 9
         writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
         
@@ -311,7 +315,7 @@ landscape.dyn <- function(scn.name){
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
-  
+  write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
   
 } 
 

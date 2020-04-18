@@ -3,8 +3,8 @@ debugg <- function(){
   out.path <- "outputs/Test01"
   library(sp); library(raster); library(tidyverse)
   setwd("C:/work/qbcmod/QbcLDM")
-  source("mdl/define.scenario.r");  source("mdl/landscape.dyn.r");  source("mdl/fire.spread.r")
-  source("mdl/disturbance.fire.r");   source("mdl/disturbance.cc.r");   source("mdl/disturbance.sbw.r") 
+  source("mdl/define.scenario.r");  source("mdl/landscape.dyn.r")
+  source("mdl/wildfires.r");   source("mdl/disturbance.cc.r");   source("mdl/disturbance.sbw.r") 
   source("mdl/disturbance.pc.r");   source("mdl/buffer.mig.r"); source("mdl/forest.transitions.r")  
   source("mdl/suitability.r"); source("mdl/fuel.type.r")  
   scn.name <- "Test01"
@@ -56,10 +56,10 @@ play.landscape.dyn <- function(){
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r")
   source("mdl/landscape.dyn.r")  
-  # Set the scenario and run the model
   scn.name <- "Test01"
   define.scenario(scn.name)
   landscape.dyn(scn.name)  
+  
 }
 
 

@@ -58,8 +58,8 @@ define.scenario <- function(scn.name){
   fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
                      # Flammability (that modify the burnt probability) of the fuel types
                      # If baseline=c(1,1,1) no effect of fuel.types on fire spreading/burning
-  wflam <- 0.7 # Weight spp flammability in fire spread rate
-  wwind <- 0.3 # Weight wind in fire spread rate
+  wflam <- 0.6 # Weight spp flammability in fire spread rate
+  wwind <- 0.4 # Weight wind in fire spread rate
   rpb <- 0.3
   pb.upper.th <- 0.8 # prob.burning >= th --> cell always burns
   pb.lower.th <- 0.1 # prob.burning < th --> cell never burns
@@ -74,8 +74,8 @@ define.scenario <- function(scn.name){
   salvage.rate.event <- 1  # maximal proportion of burnt mature forests that can be salvaged realistically 
                            # in a given fire event [0,1]
   salvage.rate.FMU <- 1    # maximum proportion of salvaged burnt wood allowed in the timber supply in each FMU [0,1]
-  ecocrisis <- FALSE       # presence of economic crises during simulations
-  ecocrisis.freq <- 0.0    # proportion of years affected by an economic crisis (between 0 and 1)
+  # ecocrisis <- FALSE       # presence of economic crises during simulations
+  # ecocrisis.freq <- 0.0    # proportion of years affected by an economic crisis (between 0 and 1)
   hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years)
   ## Replanning options facing natural disturbances
   a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution nof a buffer 

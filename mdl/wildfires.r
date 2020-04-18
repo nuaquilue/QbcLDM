@@ -38,9 +38,10 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   
   ## Wind direction between neigbours
   ## Wind direction is coded as 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
-  default.neigh <- data.frame(x=c(-1,1,2900,-2900,2899,-2901,2901,-2899),
-                              windir=c(270,90,180,0,225,315,135,45),
-                              dist=1000*c(2,2,2,2,sqrt(8),sqrt(8),sqrt(8),sqrt(8)))
+  # default.neigh <- data.frame(x=c(-1,1,805,-805,804,-806,806,-804),
+  #                             windir=c(270,90,180,0,225,315,135,45),
+  #                             dist=1000*c(2,2,2,2,sqrt(8),sqrt(8),sqrt(8),sqrt(8)))
+  default.neigh <- data.frame(x=c(-1,1,805,-805), windir=c(270,90,180,0))
   default.nneigh <- nrow(default.neigh)
   
   ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
@@ -59,10 +60,12 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   
   ## Reset TrackFires data frame each run
   track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
-  track.fuels <- data.frame(zone=NA)
+  track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
+                           flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
+  
   
   ## Start burning until annual target area per fire zone is not reached
-  fire.id <- 0
+  fire.id <- 0; izone <- "ZD"; i <- 1
   for(izone in fr.zones){
     
     # Determine number of fires per zone  - considering fire rate increase with time 
@@ -72,72 +75,75 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
     # Limit number of fires to a predefined range [1, max.nfires]
     num.fires <- pmax(1, pmin(num.fires, dist.num.fires$max.nfires[dist.num.fires$zone==izone]))
     
+    pxlburnt <- fire.size.target <- 0
+    
     ## Spreading of each fire
     for(i in 1:num.fires){
       
       ## ID for each fire event
       fire.id <- fire.id+1
       
-      ## Determine potential area of the fires (i.e. the target area) in km2
-      ## Fire size is drawn from an empirical discrete distribution defined in classes of 50 km2 
-      ## Change fire sizes to account for changes in landscape-level flammability
-      ## VERIFY THE IMPACT OF LANDSCAPE FLAMMABILITY ON FIRE SIZE. I dont' like to much
-      fire.area <- (50*sample(1:nrow(dist.fire.size), 1, replace=F,
-                               p=dist.fire.size[, which(levels(fr.zones)==izone)+2]) -
-                   runif(1,0,50) ) * modif.fuels$x[modif.fuels$zone==izone]
-      
-      # Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
-      # while others will gain... on average the difference should be 0
-      fire.size.target <- round(fire.area/km2.pixel)
-      
-      ## Select an ignition point according to probability of ignition
-      igni.id <- sample(pigni$cell.id, 1, replace=F, pigni$p)
+      ## If previous fire has extinguished to early (burnt.area/target.area<50%), then "reuse" the
+      ## target area for a new fire. This tends to occur when potentially big fires start in low-fuel lands
+      ## Or in a agro-forest matrix. I may need to add a condition related to the minimum target area
+      ## I allow to be reused (something big e.g < 200)
+      if(i==1 | (i>1 & pxlburnt/fire.size.target>=0.5)){
+        num.fires <- num.fires+1
+        ## Determine potential area of the fires (i.e. the target area) in km2
+        ## Fire size is drawn from an empirical discrete distribution defined in classes of 50 km2 
+        ## Change fire sizes to account for changes in landscape-level flammability
+        ## VERIFY THE IMPACT OF LANDSCAPE FLAMMABILITY ON FIRE SIZE. I dont' like to much
+        fire.area <- (50*sample(1:nrow(dist.fire.size), 1, replace=F,
+                                p=dist.fire.size[, which(levels(fr.zones)==izone)+2]) -
+                        runif(1,0,50) ) * modif.fuels$x[modif.fuels$zone==izone]
+        
+        # Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
+        # while others will gain... on average the difference should be 0
+        fire.size.target <- round(fire.area/km2.pixel)
+      }
       
       ## Assign the main wind direction according to the fire spread type
       ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
       # S 10%, SW 30%, W 60%  
-      fire.wind <- sample(c(180,225,270), 1, replace=F, p=c(10,30,60))
+      fire.wind <- sample(c(180,225,270), 1, replace=T, p=c(10,30,60)); fire.wind
       
-      ## Initialize tracking variables
-      fire.front <- igni.id
+      ## Select an ignition point according to probability of ignition and initialize tracking variables
+      fire.front <- sample(pigni$cell.id, 1, replace=F, pigni$p)
+      burnt.cells <- c(burnt.cells, fire.front)
+      visit.cells <- c(visit.cells, fire.front)
       pxlburnt <- 1  
-      burnt.cells <- c(burnt.cells, igni.id)
-      visit.cells <- c(visit.cells, igni.id)
-      
-      ## Tracking
       fire.step <- 1
-      # track.spread <- rbind(track.spread, data.frame(fire.id=fire.id, cell.id=igni.id, step=fire.step, 
-      #                                                spp=land$SppGrp[land$cell.id==igni.id],
-      #                                                wind=0, flam=0, sr=1, pb=1, burning=1))
+      track.sprd <- rbind(track.sprd, 
+                          data.frame(zone=izone, fire.id=fire.id, cell.id=fire.front, step=fire.step, 
+                                     flam=0, wind=0, sr=1, pb=1, burning=TRUE))
       
       
       ## Start speading from active cells (i.e. the fire front)
       while(pxlburnt<fire.size.target){
         
-        ## Build a data frame with the theoretical 8 (=default.nneigh=) neighbours of cells in fire.front, 
+        ## Build a data frame with the theoretical 8 neighbours of cells in fire.front, 
         ## Add the wind direction and the distance.
         ## Filter neighbours in the study area and that have not been visited yet
         ## Then, look for their default flammability
-        neigh.id <- data.frame(cell.id=rep(fire.front, each=default.nneigh)+rep(default.neigh$x, length(fire.front)),
+        neigh.id <- data.frame(cell.id=rep(fire.front, each=default.nneigh)+ rep(default.neigh$x, length(fire.front)),
                                source.id=rep(fire.front, each=default.nneigh),
-                               dist=rep(default.neigh$dist, length(fire.front)),
                                windir=rep(default.neigh$windir, length(fire.front)) ) %>%
                     filter(cell.id %in% land$cell.id) %>% filter(cell.id %notin% visit.cells) %>%
                     left_join(fuels, by="cell.id") %>% 
                     mutate(flam=wflam*baseline, 
                            wind = wwind * (ifelse(abs(windir-fire.wind)>180, 
                                         360-abs(windir-fire.wind), abs(windir-fire.wind)))/180,
-                           sr=wind+flam, pb=1+rpb*log(sr)) 
+                           sr=wind+flam, pb=1+rpb*log(sr))
         neigh.id  
         
         ## Get spread rate andcompute probability of burning and actual burning state (T or F):
         sprd.rate <- group_by(neigh.id, cell.id) %>% 
-                     summarize(step=fire.step, sr=max(sr), pb=max(pb)) 
-        sprd.rate$burning <- runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
-        sprd.rate
-         
-        # if(nrow(sprd.rate)>0)
-        #   track.spread <- rbind(track.spread, data.frame(fire.id=fire.id, sprd.rate))
+                     summarize(flam=max(flam)/wflam, wind=max(wind)/wwind, sr=max(sr), pb=max(pb), ) 
+        sprd.rate$burning <-runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
+        if(nrow(sprd.rate)>0)
+          track.sprd <- rbind(track.sprd, data.frame(zone=izone, fire.id=fire.id, cell.id=sprd.rate$cell.id,
+                                          step=fire.step, flam=sprd.rate$flam, wind=sprd.rate$wind,
+                                          sr=sprd.rate$sr, pb=sprd.rate$pb, burning=sprd.rate$burning))
         # 
         ## If at least there's a burning cell, continue, otherwise, stop
         if(!any(sprd.rate$burning))
@@ -148,8 +154,8 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
         burnt.cells <- c(burnt.cells, sprd.rate$cell.id[sprd.rate$burning])
         visit.cells <- c(visit.cells, sprd.rate$cell.id)
         exclude.th <- min(max(sprd.rate$sr)-0.005, 
-                          rnorm(1,mean(sprd.rate$sr[sprd.rate$burning])-mad(sprd.rate$sr[sprd.rate$burning])/2,
-                                mad(sprd.rate$sr[sprd.rate$burning])))
+                           rnorm(1,mean(sprd.rate$sr[sprd.rate$burning])-sd(sprd.rate$sr[sprd.rate$burning])/4,
+                                 sd(sprd.rate$sr[sprd.rate$burning])/2))
         fire.front <- sprd.rate$cell.id[sprd.rate$burning & sprd.rate$sr>=exclude.th]
         
         ## Increase area burnt and fire.step 
@@ -186,6 +192,6 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   
   toc()
   ## Return the index of burnt cells and the tracking data.frames
-  return(list(burnt.cells=burnt.cells, track.regime=track.regime, track.fire=track.fire))  #, track.sprd=track.sprd
+  return(list(burnt.cells=burnt.cells, track.regime=track.regime, track.fire=track.fire, track.fuels=track.fuels))  
   
 }
