@@ -18,7 +18,8 @@ landscape.dyn <- function(scn.name){
   ## Load required packages and functions 
   suppressPackageStartupMessages({
     library(tictoc)
-    library(raster)  
+    library(raster)
+    library(RANN)
     library(tidyverse)
   })
   source("mdl/wildfires.r")
@@ -29,6 +30,8 @@ landscape.dyn <- function(scn.name){
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/fuel.type.r")  
+  
+  tic("  t")
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
@@ -77,7 +80,7 @@ landscape.dyn <- function(scn.name){
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
-  track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
+  track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, atarget.modif=NA, aburnt=NA)
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
   
   
@@ -133,6 +136,7 @@ landscape.dyn <- function(scn.name){
       }
       
       
+      ##################################### PROCESSES OF CHANGE #####################################
       ## 1. FIRE
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
@@ -154,8 +158,8 @@ landscape.dyn <- function(scn.name){
       ## 2. SBW (under development)
       kill.cells <- integer()
       if(processes[sbw.id] & t %in% sbw.schedule){
-        kill.cells <- disturbance.sbw(land, severity=1, write.tbl.outputs=T,
-                                      km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
+        kill.cells <- sbw.outbreak(land, severity=1, write.tbl.outputs=T,
+                                   km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
         # Done with outbreak
         land$TSDist[land$cell.id %in% kill.cells] <- 0
         land$DistType[land$cell.id %in% kill.cells] <- sbw.id
@@ -218,10 +222,10 @@ landscape.dyn <- function(scn.name){
       
       
 
-      ############################# POST-DISTURBANCE REGENERATION #############################
+      ##################################### VEGETATION DYNAMICS #####################################
+      
       ## Natural regeneration of forest after disturbance depends on the nature of the disturbance 
       ## and on the age of the stand at the time the disturbance occurred  
-      
       ## Assess cell suitability according to climate, soils, and tree species
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       
@@ -230,10 +234,10 @@ landscape.dyn <- function(scn.name){
       
       ## 1. FIRE
       if(processes[fire.id] & !is_empty(burnt.cells) & FALSE){
-        buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD","Tcomp")], 
-                             land[land$cell.indx %in% burnt.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
-        land$SppGrp[land$cell.indx %in% burnt.cells]  <-  forest.trans(subset(land, select=c(cell.indx, SppGrp), cell.indx %in% burnt.cells), 
-                       subset(post.fire.reg, select=-age.class, age.class=="adult"), buffer, suitab, dtype="B",persist, p.failure, age.seed, suboptimal,enfeuil)
+        buffer <- buffer.mig(land, burnt.cells, potential.spp)
+        # land$SppGrp[land$cell.indx %in% burnt.cells] <- 
+          a <- forest.trans(filter(land, cell.id %in% burnt.cells), post.fire.reg, buffer, suitab, dtype="B",
+                       persist, p.failure, age.seed, suboptimal, enfeuil)
       }
 
       ## 2. SBW
@@ -317,6 +321,7 @@ landscape.dyn <- function(scn.name){
   write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
   
+  toc()
 } 
 
 

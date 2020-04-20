@@ -23,111 +23,81 @@
 ###          
 ######################################################################################
 
-#          subland  <- subset(land, select=c(cell.indx, SppGrp), cell.indx %in% burnt.cells)
-#          prob.reg <- subset(post.fire.reg, select=-age.class, age.class=="adult")
+          subland  <- filter(land, cell.id %in% burnt.cells)
+          prob.reg <- post.fire.reg
 #
 #          subland  <- subset(land, select=c(cell.indx, SppGrp), land$TSC == 0)
 #          prob.reg <- post.harvest.reg
 
-forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.failure, age.seed, Subopt,enfeuil){
+forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.failure, age.seed, suboptimal, enfeuil){
   
-  # if empty data.frame
+  ## If target data.frame is empty
   if(nrow(subland)==0)
     return(numeric())
   
-  # reset levels in SppGrp of the 'subland' data.frame so they match with those in
-  # the 'land.prob' data.frame
-  subland$SppGrp <- factor(subland$SppGrp)
+  ##
+  current.spp <- subland$SppGrp  #
+  
+  ## Join to the subland data frame the probability of transition to PotSpp (according to initial SppGrp)
+  ## Then join buffer results indicating whether the potential species is present in the surrounding neighborhood
+  ## Finally join the climatic-soil suitability index (i.e. modifier) of the potential spp
+  subland <- left_join(subland, select(prob.reg, -age.class), by="SppGrp") %>%
+             left_join(buffer, by=c("cell.id","PotSpp")) %>%
+             left_join(suitab, by=c("cell.id","PotSpp")) 
 
   
-  # 1. Join data frames of tree species and probability of spp change    
-  # names(land.prob) : "cell.indx" "SppGrp" "Temp"  "Precip" "SoilType"  "PotSpp"  "ptrans" 
-  land.prob <- join(subland, prob.reg, by=c("SppGrp"), type="left", match="all")
-  # 2. Add buffer results indicating whether the potential species is present in the surrounding neighborhood
-  land.prob <- join(land.prob, buffer, by=c("cell.indx","PotSpp"), type="left", match="all")
-  
-  # 3. Add climatic-soil suitability index (i.e. modifier)
-  land.prob <- join(land.prob, suitab[,1:4], by=c("cell.indx","PotSpp"), type="left", match="all")
-
-  # 4. Reset suitability for non species
-  if("other" %in% levels(land.prob$PotSpp))
-    land.prob$SuitClim[land.prob$PotSpp=="other"] <- 1
-
-  if("NonFor" %in% levels(land.prob$PotSpp)) {
-    land.prob$SuitClim[land.prob$PotSpp=="NonFor"] <- 1
-    land.prob$SuitSoil[land.prob$PotSpp=="NonFor"] <- 1
-     } 
-    
-    
-  #enfeuil=0.5 
   # Eufeuillement volontaire suite aux coupes
-  if(dtype=="C"& enfeuil>0){  # dtype="B"
- 
+  if(dtype=="C" & enfeuil>0){  
       vec.enfeuil  <- land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans
       vec.enfeuil2 <- (vec.enfeuil) + ((runif(length(vec.enfeuil))<enfeuil )*1000)
       land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans <- vec.enfeuil2
   }
   
-  # Reburning case: if burnt stands too young, probability of successful natural regen is lower
-
+  ## Reburning case: If burnt stands are too young, probability of successful natural regeneration is lower
   if(dtype=="B"){ 
-    land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans <- 
-    land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans * (1-p.failure)
+    subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN"& subland$Age<age.seed] <- 
+      subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN"& subland$Age<age.seed] * (1-p.failure)
   }
   
-  
-  # Stability criteria: if the species is present in the target location,
-  # soil conditions are assumed to be optimal (not limiting)
-  
-  levels(land.prob$SppGrp) <- levels(land.prob$PotSpp)
-  land.prob$PresBuffer[land.prob$SppGrp == land.prob$PotSpp] <- 1
-  land.prob$SuitSoil[land.prob$SppGrp == land.prob$PotSpp] <- 1
+  ## Stability criteria: if the species is present in the target location, then
+  ## soil conditions are assumed to be optimal (not limiting)
+      # levels(subland$SppGrp) <- levels(subland$PotSpp)
+  subland$PressBuffer <- (subland$SppGrp == subland$PotSpp) | (subland$PressBuffer)
+  subland$SuitSoil[subland$SppGrp == subland$PotSpp] <- 1
 
-  # Species persistence when climatic conditions become unfavorable: 
-  # when persistence is allowed (1), there is a floor probability of self-replacement
-  # corresponding to sub-optimal conditions (under the assumption that 
-  # competition is more limiting than  physiological response to climate)
-  especes <- c("PET","BOJ","ERS","SAB","EPN")
-  for (i in 1:5) {
-    if (persist[i] == 1) {
-    land.prob$SuitClim[(especes[i]==land.prob$SppGrp) & (land.prob$SppGrp == land.prob$PotSpp) 
-                       & (land.prob$SuitClim<Subopt)] <- Subopt  
-      
-  }
-  }
-  # Final soil suitability corresponds to the minimum value between soil and climate suitability
+  ## Species persistence when climatic conditions become unfavorable: when persistence is allowed (1), 
+  ## there is a floor probability of self-replacement corresponding to sub-optimal conditions 
+  ## (under the assumption that competition is more limiting than  physiological response to climate)
+  ## First, find which spp are allowed to persist then, upgrade climatic suitability to suboptimal
+  ## in case this is lower than suboptimal.
+  spp.persist <- potential.spp$PotSpp[potential.spp$persist==0.1]
+  subland$SuitClim[subland$SppGrp %in% spp.persist & 
+                     subland$SppGrp == subland$PotSpp & subland$SuitClim<suboptimal] <- suboptimal
+  
+  ## Determine the final succession / regeneration probability 
+  subland$p <- subland$ptrans * subland$PressBuffer * pmin(subland$SuitClim, subland$SuitSoil)
+  
+  ## Reshape the data frame, so we have a column for each potential species with 
+  ## the corresponding transition probability (one row per target cell)
+  aux <- reshape2::dcast(subland, formula = cell.id ~ PotSpp, value.var = "p")
+  
+  ## Now select a new spp according to these probabilitiesand assign the corresponing species name
+  ## If after all filters, p for all PotSpp is 0, the current species remains
+  spp.names <- names(aux)[2:ncol(aux)]
+  id.spp <- apply(aux[,2:ncol(aux)], 1, select.spp)
+  new.spp <- numeric(length=length(id.spp))
+  new.spp[id.spp!=0] <- spp.names[id.spp[id.spp!=0]]
+  new.spp[id.spp==0] <- as.character(current.spp[id.spp==0])
     
-  land.prob$SuitAll <- pmin(land.prob$SuitClim,land.prob$SuitSoil)
-  
-  # Determine the final succession / regeneration probability 
-  land.prob$p <- land.prob$ptrans * land.prob$SuitAll * land.prob$PresBuffer
-  
-  # Reshape the data frame, so we have a column for each potential species with 
-  # the corresponding transition probability (one row per target cell)
-  aux  <- dcast(land.prob, formula = cell.indx ~ PotSpp, value.var = "p")
-  
-  # Now select a new spp according to these probabilities  
-  # and assign the corresponing species name
-  id.spp <- apply(aux[,2:ncol(aux)], 1, select.spp, nspp=ncol(aux))
-  spp.names <- c(names(aux)[2:ncol(aux)], "NULL")  ## NULL name for cases where p=0
-  newspp <- spp.names[id.spp]
-  
-  # If after all filters, p for all PotSpp is 0, the current species remains
-  cell.withoutspp <- aux$cell.indx[id.spp==ncol(aux)]
-  if(length(cell.withoutspp)>0){
-    renewspp <- subland$SppGrp[subland$cell.indx %in% cell.withoutspp]
-    newspp[id.spp==ncol(aux)] <- spp.names[renewspp]
-  }
- 
-  # return the vector with the name of the new spp
+  ## Return the vector with the name of the new spp
   return(newspp)
 
 }
 
-
-select.spp <- function(x, nspp){
+## Function that returns spp id according to probability x
+select.spp <- function(x){
   if(sum(x)==0)
-    return(c(nspp))
+    return(0)
   id.spp <- sample(1:length(x), 1, replace=FALSE, prob=x)
   return(id.spp)
 }

@@ -1,10 +1,10 @@
 debugg <- function(){
   rm(list=ls())
   out.path <- "outputs/Test01"
-  library(sp); library(raster); library(tidyverse)
+  library(tictoc);  library(sp); library(raster); library(RANN); library(tidyverse)
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r");  source("mdl/landscape.dyn.r")
-  source("mdl/wildfires.r");   source("mdl/disturbance.cc.r");   source("mdl/disturbance.sbw.r") 
+  source("mdl/wildfires.r");   source("mdl/disturbance.cc.r");   source("mdl/sbw.outbreak.r") 
   source("mdl/disturbance.pc.r");   source("mdl/buffer.mig.r"); source("mdl/forest.transitions.r")  
   source("mdl/suitability.r"); source("mdl/fuel.type.r")  
   scn.name <- "Test01"
@@ -58,7 +58,11 @@ play.landscape.dyn <- function(){
   source("mdl/landscape.dyn.r")  
   scn.name <- "Test01"
   define.scenario(scn.name)
-  landscape.dyn(scn.name)  
+  fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
+  write.sp.outputs <- F
+  dump(c("fuel.types.modif", "write.sp.outputs"), 
+       paste0("outputs/", scn.name, "/scn.custom.def.r"))
+  landscape.dyn(scn.name)
   
 }
 
@@ -97,7 +101,8 @@ play.change.spinput.resol <- function(){
 write.plot.sp.input <- function(){
   rm(list=ls())
   setwd("C:/work/qbcmod/QbcLDM")
-  load(file="inputlyrs/rdata/sp.input.rdata") 
+  load(file="inputlyrs/rdata/sp.input.rdata")
+  writeRaster(sp.input$FRZone, "inputlyrs/asc/FRZone.tif", format="GTiff", overwrite=T)
   writeRaster(sp.input$FRZone, "inputlyrs/asc/FRZone.asc", format="ascii", overwrite=T)
   writeRaster(sp.input$BCDomain, "inputlyrs/asc/BCDomain.asc", format="ascii", overwrite=T)
   writeRaster(sp.input$MgmtUnit, "inputlyrs/asc/MgmtUnit.asc", format="ascii", overwrite=T)    

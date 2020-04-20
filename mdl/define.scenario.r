@@ -44,7 +44,6 @@ define.scenario <- function(scn.name){
   sbw.id <- 2; sbw.step <- 30
   cc.id <- 3; cc.step <- 5
   pc.id <- 4; pc.step <- 5
-  chgcompo.id <- 5
   
   
   ## CLIMATE CHANGE parameters
@@ -86,12 +85,6 @@ define.scenario <- function(scn.name){
   
   ## VEGETATION DYNAMICS parameters:
   succ.enable <- 1 # 1 =enable succession after disturbance, 0=composition remains the same
-  radius.buff <-  c(75000, 60000, 50000, 50000, 50000) # estimated maximum colonization distance (in m)
-  #radius.buff <-  c(15000,12000,10000,10000,10000)  # hypoth?se pessimiste
-  nb.buff <- c(1,1,1,1,1)     # minimum number of source cells within the colonization distance for
-                              # to enable colonization
-  persist <- c(1,1,1,1,1)     # it indicates whether we allow the transition probability to remain high locally
-                              # (cell level) when the species is outside its optimal climatic condition (1=yes, 0=no)
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
   suboptimal <- 0.5  # tolerance for sub optimal conditions
@@ -99,6 +92,11 @@ define.scenario <- function(scn.name){
   post.sbw.reg <- read.table("inputfiles/PostSBWReg.txt", header=T)
   post.harvest.reg <- read.table("inputfiles/PostHarvestReg.txt", header=T)
   forest.succ <- read.table("inputfiles/ForestSucc.txt", header=T)
+  potential.spp <- read.table("inputfiles/PotentialSpp.txt", header=T)
+      # rad.buff is the estimated maximum colonization distance (in m)
+      # nb.buff is the minimum number of source cells within the colonization distance to enable colonization
+      # persist indicates whether we allow the transition probability to remain high locally
+      # (cell level) when the species is outside its optimal climatic condition (1=yes, 0=no)
   temp.suitability <- read.table("inputfiles/ThMeanTemp.txt", header=T)  
   precip.suitability <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
   soil.suitability <- read.table("inputfiles/ThSoil.txt", header=T)  

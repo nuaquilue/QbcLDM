@@ -38,6 +38,8 @@ read.state.vars <- function(work.path){
   
   ## 2. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
   ## Fix first cell size (in m)
+  ## Note that the points.shp is +proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0 
+  ## But the coordinates of the dbf is in the following projection
   MASK <- rasterFromXYZ(data.frame(forest.data[,2:3], z=1), res=c(cell.size, cell.size), digits=0,
                     crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
                     +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
@@ -104,14 +106,17 @@ read.state.vars <- function(work.path){
   
   
   ## 6. Initialize other state variables
-  ## Initalize the Time since last disturbance and the Type of the last disturbance
+  ## 6.1. Initalize the Time since last disturbance and the Type of the last disturbance
   ## The origin of any disturbance that may have impacted the study area is known.
-  ## So, we assign to TSDist the time since the last change in forest composition (transition to another dominant forest type) 
-  ## The cell can beconsidered potential "source" population for migration and range expansion 
+  land$TSDist <- NA
+  land$DistType <- NA  # chgcompo.id <- 5 (defined in define.scenario.r)
+  
+  ## 6.2. Create a variable that records the time since the last change in forest composition 
+  ## i.e. transition to another dominant forest type.
+  ## A cell will be considered potential "source" population for migration and range expansion 
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
-  land$TSDist <- 50
-  land$DistType <- 5  # chgcompo.id <- 5 (defined in define.scenario.r)
+  land$Tcomp <- 50
   
   
   ## 7. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 

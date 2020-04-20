@@ -6,8 +6,8 @@
 ###                 section of landscape.dyn
 ###
 ###  Arguments >  
-###   microland : data frame with the cell.indx, SppGrp, CoordX, and Coord Y
-###   target.cells : vector of cells open for colonization, and for which the presence of source populations
+###   land : data frame with the cell.indx, SppGrp, x, and Coord Y
+###   target.cells : vector of cells to be colonized and for which the presence of source populations
 ###                  nearby must be assessed
 ###   radius.buff : a vector presenting the radius in m corresponding to the maximal colonization distance for each species, 
 ###                 in the following order: PET(aspen), BOJ(YellowBirch), ERS(SugarMaple), 
@@ -22,56 +22,34 @@
 ###           species: PET, BOJ, ERS, SAB, EPN, other, NonFor
 ######################################################################################
 
- # microland <- land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD","Tcomp")]
- # target.cells <- land[land$cell.indx %in% burnt.cells, c("cell.indx", "CoordX", "CoordY")]
-
-buffer.mig <- function(microland, target.cells, radius.buff, nb.buff){
+ 
+buffer.mig <- function(land, target.cells, potential.spp){
   
-  # Source cells (i.e. potential colonizers) per species. Minimal age of 50 years.
-  micro.boj <- microland[microland$SppGrp=="BOJ" & microland$TSD >= 50 & microland$Tcomp >= 50,]
-  micro.pet <- microland[microland$SppGrp=="PET" & microland$TSD >= 50 & microland$Tcomp >= 50,]
-  micro.ers <- microland[microland$SppGrp=="ERS" & microland$TSD >= 50 & microland$Tcomp >= 50,]
-  micro.epn <- microland[microland$SppGrp=="EPN" & microland$TSD >= 50 & microland$Tcomp >= 50,]
-  micro.sab <- microland[microland$SppGrp=="SAB" & microland$TSD >= 50 & microland$Tcomp >= 50,]
+  ## Get coordinates x,y of target cells
+  target.coord <- filter(land, cell.id %in% target.cells) %>% select(x,y)
   
-  ### Calculate number of source populations in the neighbohood of each target cell. Colonization distances
-  ### are species-specific.
-  # PET
-  list.cell.buff <- nn2(micro.pet[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
-                        k=nb.buff[1] , searchtype='priority')
-  nn.dists.pet <- list.cell.buff$nn.dists[, nb.buff[1]] < radius.buff[1]
+  ## A data frame with target.cells ids, Potential species and whether these are found in the neighborhood
+  ## We assume that always at least 1 "other" spceies and "NonFor" cover are in the target neighborhood
+  buffer.spp <- data.frame(cell.id=target.cells, 
+                           PotSpp=rep(c("other", "NonFor"), each=length(target.cells)),
+                           PressBuffer=TRUE)
   
-  # BOJ   
-  list.cell.buff <- nn2(micro.boj[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
-                        k=nb.buff[2], searchtype='priority')
-  nn.dists.boj <- list.cell.buff$nn.dists[,nb.buff[2]]< radius.buff[2]
+  ## Verify whether the closest neighs of each potential spp are close of enought of the target cell to be colonized
+  for(ispp in 1:nrow(potential.spp)){
+    ## Find the first closest 50 neighbors (50*2000m = 10.000m) in the subset of cells with the potential species 
+    ## Source cells (i.e. potential colonizers) have minimal age of 50 years and minimal time of last species change 
+    ## composition also 50 year.
+    list.cell.buff <- nn2(filter(land, SppGrp %in% potential.spp$PotSpp[ispp], Age>=50, Tcomp>=50) %>% select(x,y),
+                          target.coord, k=50, searchtype='priority')
+    ## Now verify if the potential species are close enough of the target cells, the colonization distance is species-specific.
+    buffer.spp <- rbind(buffer.spp, 
+                        data.frame(cell.id=target.cells, 
+                                   PotSpp=potential.spp$PotSpp[ispp],
+                                   PressBuffer=as.logical(apply(list.cell.buff$nn.dists < potential.spp$rad.buff[ispp], 1, mean)) 
+                                   )
+                        )
+  }
   
-  # ERS
-  list.cell.buff <- nn2(micro.ers[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
-                        k=nb.buff[3], searchtype='priority')
-  nn.dists.ers <- list.cell.buff$nn.dists[,nb.buff[3]]< radius.buff[3]
-  
-  # SAB   
-  list.cell.buff <- nn2(micro.sab[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
-                        k=nb.buff[4],  searchtype='priority')
-  nn.dists.sab <- list.cell.buff$nn.dists[,nb.buff[4]]< radius.buff[4]
-  
-  # EPN   
-  list.cell.buff <- nn2(micro.epn[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
-                        k=nb.buff[5],  searchtype='priority')
-  nn.dists.epn <- list.cell.buff$nn.dists[,nb.buff[5]]< radius.buff[5]
-  
-  # Build a data frame with the presence or absence of a sufficient number of
-  # source populations of each species around each target cell. Currently set
-  # at one in all scenarios, but could be modified.
-  
-  target.df <- data.frame(target.cells, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, SAB=nn.dists.sab, 
-                          EPN=nn.dists.epn, other=TRUE, NonFor=TRUE)
-  target.df <- target.df[,-c(2,3)]  
-  target.df <- melt(target.df,id=c("cell.indx"))
-  names(target.df)[-1] <- c("PotSpp", "PresBuffer")
-  
-  return(target.df)
-
+  return(buffer.spp)
 }
 

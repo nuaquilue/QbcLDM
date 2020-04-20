@@ -25,7 +25,7 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
                       baseline.fuel, fuel.types.modif, km2.pixel, t){
 
   ## Tracking
-  cat("Wildfires", "\n"); tic("  t")
+  cat("Wildfires", "\n")
   options(warn=-1)
   
   ## Function to select items not in a vector
@@ -59,7 +59,7 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   burnt.cells <- visit.cells <-  numeric(0)
   
   ## Reset TrackFires data frame each run
-  track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)
+  track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA, atarget.modif=NA, aburnt=NA)
   track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
                            flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
   
@@ -68,16 +68,16 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   fire.id <- 0; izone <- "ZD"; i <- 1
   for(izone in fr.zones){
     
-    # Determine number of fires per zone  - considering fire rate increase with time 
-    num.fires <- round(rpois(1, dist.num.fires$lambda[dist.num.fires$zone==izone]) * (1+(t*fire.rate.increase)) *
-                        modif.fuels$x[modif.fuels$zone==izone])
-    
-    # Limit number of fires to a predefined range [1, max.nfires]
+    ## Determine number of fires per zone  - considering fire rate increase with time 
+    ## I DON'T AGREE THAT FUELS EXPLICITLY CHANGE THE NUMBER OF FIRES
+    ## Then, limit number of fires to a predefined range [1, max.nfires]
+    num.fires <- round(rpois(1, dist.num.fires$lambda[dist.num.fires$zone==izone]) * (1+(t*fire.rate.increase)) )
+                       #*modif.fuels$x[modif.fuels$zone==izone])
     num.fires <- pmax(1, pmin(num.fires, dist.num.fires$max.nfires[dist.num.fires$zone==izone]))
     
-    pxlburnt <- fire.size.target <- 0
     
     ## Spreading of each fire
+    pxlburnt <- fire.size.target <- 0  ## to make "if condition" evaluable
     for(i in 1:num.fires){
       
       ## ID for each fire event
@@ -87,25 +87,27 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
       ## target area for a new fire. This tends to occur when potentially big fires start in low-fuel lands
       ## Or in a agro-forest matrix. I may need to add a condition related to the minimum target area
       ## I allow to be reused (something big e.g < 200)
-      if(i==1 | (i>1 & pxlburnt/fire.size.target>=0.5)){
+      if(i==1 | (i>1 & pxlburnt/fire.size.target>=0.5) |
+         (i>1 & pxlburnt/fire.size.target<0.5 & fire.size.target<=50) ){
+        ## Increment "artificially" num.fires
         num.fires <- num.fires+1
         ## Determine potential area of the fires (i.e. the target area) in km2
         ## Fire size is drawn from an empirical discrete distribution defined in classes of 50 km2 
         ## Change fire sizes to account for changes in landscape-level flammability
         ## VERIFY THE IMPACT OF LANDSCAPE FLAMMABILITY ON FIRE SIZE. I dont' like to much
         fire.area <- (50*sample(1:nrow(dist.fire.size), 1, replace=F,
-                                p=dist.fire.size[, which(levels(fr.zones)==izone)+2]) -
-                        runif(1,0,50) ) * modif.fuels$x[modif.fuels$zone==izone]
-        
-        # Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
-        # while others will gain... on average the difference should be 0
-        fire.size.target <- round(fire.area/km2.pixel)
+                                p=dist.fire.size[, which(levels(fr.zones)==izone)+2]) - runif(1,0,50)) 
+        fire.area.modif <- fire.area*modif.fuels$x[modif.fuels$zone==izone]
+        ## Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
+        ## while others will gain... on average the difference should be 0
+        fire.size.target <- pmax(1, round(fire.area/km2.pixel))
+        fire.size.target.modif <- pmax(1, round(fire.area.modif/km2.pixel))
       }
       
       ## Assign the main wind direction according to the fire spread type
       ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
       # S 10%, SW 30%, W 60%  
-      fire.wind <- sample(c(180,225,270), 1, replace=T, p=c(10,30,60)); fire.wind
+      fire.wind <- sample(c(180,225,270), 1, replace=T, p=c(10,30,60))
       
       ## Select an ignition point according to probability of ignition and initialize tracking variables
       fire.front <- sample(pigni$cell.id, 1, replace=F, pigni$p)
@@ -170,9 +172,9 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
       } # while 'fire'
       
       ## Write info about this fire
-      track.fire <- rbind(track.fire, data.frame(zone=izone, fire.id, wind=fire.wind,
-                                                 atarget=fire.size.target*km2.pixel, aburnt=pxlburnt*km2.pixel))
-      cat(paste("Zone:", izone, "Fire:", fire.id, "- aTarget:", fire.size.target*km2.pixel, "- aBurnt:", pxlburnt*km2.pixel), "\n")
+      track.fire <- rbind(track.fire, data.frame(zone=izone, fire.id, wind=fire.wind, atarget=fire.size.target*km2.pixel,
+                                                 atarget.modif=fire.size.target.modif*km2.pixel, aburnt=pxlburnt*km2.pixel))
+      # cat(paste("Zone:", izone, "Fire:", fire.id, "- aTarget:", fire.size.target*km2.pixel, "- aBurnt:", pxlburnt*km2.pixel), "\n")
       
     }  #for 'num.fires'
   } #for 'zone'
@@ -185,12 +187,12 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
                   mutate(fire.cycle=round(time.step*atot/aburnt)) %>%
                   left_join(current.fuels, by="zone") %>% mutate(indx.combust=x) %>% select(-atot, -x)
   fuels.burnt <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif)
-  track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=4, ncol=3),
-                 table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=4, ncol=3)) %>%
+  nb <-  length(unique(fuel.types.modif$baseline))
+  track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=length(fr.zones), ncol=nb),
+                 table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=length(fr.zones), ncol=nb)) %>%
                 select(-Var1.1, -Var2.1)
   names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
   
-  toc()
   ## Return the index of burnt cells and the tracking data.frames
   return(list(burnt.cells=burnt.cells, track.regime=track.regime, track.fire=track.fire, track.fuels=track.fuels))  
   
