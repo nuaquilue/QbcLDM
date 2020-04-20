@@ -23,29 +23,34 @@
 ###          
 ######################################################################################
 
-          subland  <- filter(land, cell.id %in% burnt.cells)
-          prob.reg <- post.fire.reg
+          # subland  <- filter(land, cell.id %in% burnt.cells)
+          # prob.reg <- post.fire.reg
 #
-#          subland  <- subset(land, select=c(cell.indx, SppGrp), land$TSC == 0)
-#          prob.reg <- post.harvest.reg
+         subland  <- filter(land, cell.id %in% unlist(chg.comp.cells))
+         prob.reg <- forest.succ
 
-forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.failure, age.seed, suboptimal, enfeuil){
+forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp, 
+                         dtype, p.failure, age.seed, suboptimal, enfeuil){
+  
+  ## Tracking
+  cat("Forest transition", "\n")
+  
   
   ## If target data.frame is empty
   if(nrow(subland)==0)
     return(numeric())
   
-  ##
-  current.spp <- subland$SppGrp  #
+  ## Keep the current species in case any potential species can colonize the site.
+  ## In that case, the current species, persist.
+  current.spp <- subland$SppGrp  
   
   ## Join to the subland data frame the probability of transition to PotSpp (according to initial SppGrp)
   ## Then join buffer results indicating whether the potential species is present in the surrounding neighborhood
   ## Finally join the climatic-soil suitability index (i.e. modifier) of the potential spp
-  subland <- left_join(subland, select(prob.reg, -age.class), by="SppGrp") %>%
+  subland <- left_join(subland, prob.reg, by="SppGrp") %>%
              left_join(buffer, by=c("cell.id","PotSpp")) %>%
              left_join(suitab, by=c("cell.id","PotSpp")) 
 
-  
   # Eufeuillement volontaire suite aux coupes
   if(dtype=="C" & enfeuil>0){  
       vec.enfeuil  <- land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans
@@ -79,6 +84,7 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.fa
   
   ## Reshape the data frame, so we have a column for each potential species with 
   ## the corresponding transition probability (one row per target cell)
+  ## Substitute dcast by "gather" or "spread" from tidyverse
   aux <- reshape2::dcast(subland, formula = cell.id ~ PotSpp, value.var = "p")
   
   ## Now select a new spp according to these probabilitiesand assign the corresponing species name
@@ -90,7 +96,7 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.fa
   new.spp[id.spp==0] <- as.character(current.spp[id.spp==0])
     
   ## Return the vector with the name of the new spp
-  return(newspp)
+  return(new.spp)
 
 }
 

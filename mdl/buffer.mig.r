@@ -25,6 +25,13 @@
  
 buffer.mig <- function(land, target.cells, potential.spp){
   
+  ## Tracking
+  cat("Buffer migration", "\n")
+  
+  ## If target data.frame is empty
+  if(length(target.cells)==0)
+    return(numeric())
+  
   ## Get coordinates x,y of target cells
   target.coord <- filter(land, cell.id %in% target.cells) %>% select(x,y)
   
@@ -41,6 +48,7 @@ buffer.mig <- function(land, target.cells, potential.spp){
     ## composition also 50 year.
     list.cell.buff <- nn2(filter(land, SppGrp %in% potential.spp$PotSpp[ispp], Age>=50, Tcomp>=50) %>% select(x,y),
                           target.coord, k=50, searchtype='priority')
+    
     ## Now verify if the potential species are close enough of the target cells, the colonization distance is species-specific.
     buffer.spp <- rbind(buffer.spp, 
                         data.frame(cell.id=target.cells, 

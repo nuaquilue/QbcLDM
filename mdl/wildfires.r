@@ -60,8 +60,8 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   
   ## Reset TrackFires data frame each run
   track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA, atarget.modif=NA, aburnt=NA)
-  track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
-                           flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
+  # track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
+  #                          flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
   
   
   ## Start burning until annual target area per fire zone is not reached
@@ -79,7 +79,6 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
     ## Spreading of each fire
     pxlburnt <- fire.size.target <- 0  ## to make "if condition" evaluable
     for(i in 1:num.fires){
-      
       ## ID for each fire event
       fire.id <- fire.id+1
       
@@ -115,9 +114,9 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
       visit.cells <- c(visit.cells, fire.front)
       pxlburnt <- 1  
       fire.step <- 1
-      track.sprd <- rbind(track.sprd, 
-                          data.frame(zone=izone, fire.id=fire.id, cell.id=fire.front, step=fire.step, 
-                                     flam=0, wind=0, sr=1, pb=1, burning=TRUE))
+      # track.sprd <- rbind(track.sprd, 
+      #                     data.frame(zone=izone, fire.id=fire.id, cell.id=fire.front, step=fire.step, 
+      #                                flam=0, wind=0, sr=1, pb=1, burning=TRUE))
       
       
       ## Start speading from active cells (i.e. the fire front)
@@ -140,12 +139,16 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
         
         ## Get spread rate andcompute probability of burning and actual burning state (T or F):
         sprd.rate <- group_by(neigh.id, cell.id) %>% 
-                     summarize(flam=max(flam)/wflam, wind=max(wind)/wwind, sr=max(sr), pb=max(pb), ) 
+                     # summarize(flam=max(flam)/wflam, wind=max(wind)/wwind, sr=max(sr), pb=max(pb)) 
+                     summarize(sr=max(sr), pb=max(pb)) 
         sprd.rate$burning <-runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
-        if(nrow(sprd.rate)>0)
-          track.sprd <- rbind(track.sprd, data.frame(zone=izone, fire.id=fire.id, cell.id=sprd.rate$cell.id,
-                                          step=fire.step, flam=sprd.rate$flam, wind=sprd.rate$wind,
-                                          sr=sprd.rate$sr, pb=sprd.rate$pb, burning=sprd.rate$burning))
+        if(length(duplicate(sprd.rate$cell.id))>0){
+          print(sprd.rate)
+        }
+            # if(nrow(sprd.rate)>0)
+            #   track.sprd <- rbind(track.sprd, data.frame(zone=izone, fire.id=fire.id, cell.id=sprd.rate$cell.id,
+            #                                   step=fire.step, flam=sprd.rate$flam, wind=sprd.rate$wind,
+            #                                   sr=sprd.rate$sr, pb=sprd.rate$pb, burning=sprd.rate$burning))
         # 
         ## If at least there's a burning cell, continue, otherwise, stop
         if(!any(sprd.rate$burning))
@@ -194,6 +197,10 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
   names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
   
   ## Return the index of burnt cells and the tracking data.frames
-  return(list(burnt.cells=burnt.cells, track.regime=track.regime, track.fire=track.fire, track.fuels=track.fuels))  
+  ## For some reason I still don't know, a few (little) times, there are duplicates in burnt.cells, 
+  ## what causes errors in buffer.mig (for example). 
+  ## I will need to find the mistake and solve it, but by now I simply retrun unique(burnt.cells).
+  ## However, in such cases length(burnt.cells)*km2.pixel < aburnt at the zone level
+  return(list(burnt.cells=unique(burnt.cells), track.regime=track.regime, track.fire=track.fire, track.fuels=track.fuels))  
   
 }

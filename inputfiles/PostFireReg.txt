@@ -1,50 +1,50 @@
-SppGrp	age.class	PotSpp	ptrans
-SAB	adult	SAB	30
-SAB	adult	EPN	35
-SAB	adult	PET	20
-SAB	adult	ERS	0
-SAB	adult	BOJ	1
-SAB	adult	other	10
-SAB	adult	NonFor	0
-EPN	adult	SAB	10
-EPN	adult	EPN	85
-EPN	adult	PET	5
-EPN	adult	ERS	0
-EPN	adult	BOJ	1
-EPN	adult	other	5
-EPN	adult	NonFor	0
-PET	adult	SAB	1
-PET	adult	EPN	25
-PET	adult	PET	70
-PET	adult	ERS	1
-PET	adult	BOJ	1
-PET	adult	other	5
-PET	adult	NonFor	0
-ERS	adult	SAB	0
-ERS	adult	EPN	0
-ERS	adult	PET	60
-ERS	adult	ERS	20
-ERS	adult	BOJ	10
-ERS	adult	other	25
-ERS	adult	NonFor	0
-BOJ	adult	SAB	0
-BOJ	adult	EPN	0
-BOJ	adult	PET	75
-BOJ	adult	ERS	20
-BOJ	adult	BOJ	20
-BOJ	adult	other	25
-BOJ	adult	NonFor	0
-other	adult	SAB	5
-other	adult	EPN	20
-other	adult	PET	15
-other	adult	ERS	10
-other	adult	BOJ	5
-other	adult	other	35
-other	adult	NonFor	0
-NonFor	adult	SAB	0
-NonFor	adult	EPN	0
-NonFor	adult	PET	0
-NonFor	adult	ERS	0
-NonFor	adult	BOJ	0
-NonFor	adult	other	0
-NonFor	adult	NonFor	100
+SppGrp	PotSpp	ptrans
+SAB	SAB	30
+SAB	EPN	35
+SAB	PET	20
+SAB	ERS	0
+SAB	BOJ	1
+SAB	other	10
+SAB	NonFor	0
+EPN	SAB	10
+EPN	EPN	85
+EPN	PET	5
+EPN	ERS	0
+EPN	BOJ	1
+EPN	other	5
+EPN	NonFor	0
+PET	SAB	1
+PET	EPN	25
+PET	PET	70
+PET	ERS	1
+PET	BOJ	1
+PET	other	5
+PET	NonFor	0
+ERS	SAB	0
+ERS	EPN	0
+ERS	PET	60
+ERS	ERS	20
+ERS	BOJ	10
+ERS	other	25
+ERS	NonFor	0
+BOJ	SAB	0
+BOJ	EPN	0
+BOJ	PET	75
+BOJ	ERS	20
+BOJ	BOJ	20
+BOJ	other	25
+BOJ	NonFor	0
+other	SAB	5
+other	EPN	20
+other	PET	15
+other	ERS	10
+other	BOJ	5
+other	other	35
+other	NonFor	0
+NonFor	SAB	0
+NonFor	EPN	0
+NonFor	PET	0
+NonFor	ERS	0
+NonFor	BOJ	0
+NonFor	other	0
+NonFor	NonFor	100

@@ -24,7 +24,7 @@ landscape.dyn <- function(scn.name){
   })
   source("mdl/wildfires.r")
   source("mdl/disturbance.cc.r") 
-  source("mdl/disturbance.sbw.r") 
+  source("mdl/sbw.outbreak.r") 
   source("mdl/disturbance.pc.r")   
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
@@ -65,11 +65,6 @@ landscape.dyn <- function(scn.name){
   time.seq <- seq(0, time.horizon, time.step) 
   
   
-  ## Calculate the baseline fuel (fuel at the fire regime zone in t=0)
-  load(file="inputlyrs/rdata/land.rdata")
-  baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
-  
-  
   ## Tracking data.frames  ( review description ARE WRONG!!)
   ## 1. Area of each species within poor, medium, or good climatic-soil suitability levels
   ## 2. The distribution of Ages Class per domain
@@ -85,6 +80,7 @@ landscape.dyn <- function(scn.name){
   
   
   ## Start the simulations
+  irun <- 1
   for(irun in 1:nrun){
     
     ## Load dynamic state variables 
@@ -114,13 +110,18 @@ landscape.dyn <- function(scn.name){
                                                     med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
     track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=year.ini, aux))
     rm(suitab); rm(aux)
-      
+
 
     # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
     # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
     ref.harv.level <- table(land$MgmtUnit)*0 
     
     
+    ## Calculate the baseline fuel at the fire regime zone 
+    baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
+    
+    
+    ## Start 
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
@@ -188,7 +189,6 @@ landscape.dyn <- function(scn.name){
       ## correspond ? la moiti? de l'?ge d'admissibilit? pour la coupe totale (land$age.mat).
       ## TSPC = temps depuis coupe partielle. Une valuer de 0 est assign?e lorsque le peuplement 
       ## est affect? par une perturbation s?v?re
-      
       # REVIEW land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       pc.cells <- integer()
       if(processes[pc.id] & t %in% pc.schedule){
@@ -206,95 +206,81 @@ landscape.dyn <- function(scn.name){
       # Lorsque l'option 'a priori' est s?lectionn?e, le niveau de r?f?rence est calcul? durant
       # la premi?re p?riode, en appliquant une p?nalit? (a.priori). Ce niveau de r?colte (ref.harv.level)
       # en coupe totale est maintenu tel quel durant les p?riodes subs?quentes.
-          if (t==5) {
-              ref.harv.level    <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
-              if(irun==1) {
-                ref.harv.level.cp <- table(land$MgmtUnit[land$cell.indx %in% pc.cells])
-                ref <- cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel
-                write.table(ref, 
-                          file = paste0(out.path, "/InitialHarvestLevel.txt"),
+      if (t==5) {
+        ref.harv.level  <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
+        if(irun==1) {
+          ref.harv.level.cp <- table(land$MgmtUnit[land$cell.indx %in% pc.cells])
+          ref <- cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel
+          write.table(ref, file = paste0(out.path, "/InitialHarvestLevel.txt"),
                           quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
-                }
-            } else {
-              bid <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
-              ref.harv.level <- pmax(ref.harv.level,bid)
-            }      
+        }
+      } 
+      else{
+        bid <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
+        ref.harv.level <- pmax(ref.harv.level,bid)
+      }      
       
       
 
       ##################################### VEGETATION DYNAMICS #####################################
       
-      ## Natural regeneration of forest after disturbance depends on the nature of the disturbance 
-      ## and on the age of the stand at the time the disturbance occurred  
-      ## Assess cell suitability according to climate, soils, and tree species
+      ## First of all, save a vector containing initial forest composition for comparison at the end of the for loop
+      initial.forest.comp <- land$SppGrp
+      
+      ## Natural regeneration of forest after disturbance depends on the nature of the disturbance, 
+      ## the age of the stand at the time the disturbance occurred, and the environmental suitability
+      ## according to climate and soils. Compute it:
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       
-      # save a vector containing initial forest composition, for comparison at the end of for loop
-      vec_compo_init <- land$SppGrp
       
-      ## 1. FIRE
-      if(processes[fire.id] & !is_empty(burnt.cells) & FALSE){
-        buffer <- buffer.mig(land, burnt.cells, potential.spp)
-        # land$SppGrp[land$cell.indx %in% burnt.cells] <- 
-          a <- forest.trans(filter(land, cell.id %in% burnt.cells), post.fire.reg, buffer, suitab, dtype="B",
-                       persist, p.failure, age.seed, suboptimal, enfeuil)
-      }
-
-      ## 2. SBW
-      if(processes[sbw.id] & !is_empty(kill.cells)){
-        buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
-                             land[land$cell.indx %in% kill.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
-        land$SppGrp[land$cell.indx %in% kill.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% kill.cells), 
-                                                                  post.sbw.reg, buffer, suitab, dtype="S",persist, p.failure, age.seed, suboptimal,enfeuil)
-      }
-
-      ## 4. CLEAR CUTTING
-      if(processes[cc.id] & !is_empty(cc.cells)){
-        buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY","TSD", "Tcomp")],
-                             land[land$cell.indx %in% cc.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
-        land$SppGrp[land$cell.indx %in% cc.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp), land$cell.indx %in% cc.cells), 
-                       post.harvest.reg, buffer, suitab, dtype="C",persist, p.failure, age.seed, suboptimal,enfeuil)
-      }
-
+      ## Regeneration after fire
+      buffer <- buffer.mig(land, burnt.cells, potential.spp)
+      land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(filter(land, cell.id %in% burnt.cells), 
+                 post.fire.reg, buffer, suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
       
-      ############################## AGING and FOREST SUCCESSION ##############################
-      ## First update the age of all disturbed cells in this time step (set to 0 TSD):
-      ## We don't do that at the end of each disturbance because we need to know the original 
-      ## TSD for certain processes, no matter what disturbance has happened that time step
-      # land$TSD[land$cell.indx %in% c(burnt.cells, kill.cells, wind.cells, cc.cells)] <- 0
-      #     
-      # ## Aging = increment Time Since Disturbances by time.step but upper truncated 
-      # land$TSD[land$TSD > -1] <- pmin.int(land$TSD[land$TSD > -1] + time.step, 250)
-      # land$TSF[land$TSF > -1] <- pmin.int(land$TSF[land$TSF > -1] + time.step, 250)
-      # land$TSC[land$TSC > -1] <- pmin.int(land$TSC[land$TSC > -1] + time.step, 250) 
-      # land$TSE[land$TSE > -1] <- pmin.int(land$TSE[land$TSE > -1] + time.step, 250) 
-      # land$TSPC[land$TSPC > -1] <- pmin.int(land$TSPC[land$TSPC > -1] + time.step, 250) 
 
-      ###################
-      ## Succession of tree spp at every 40 years starting at TSD = 70
-      # id cells undergoing succession during time step t
-      com.chan.cells <- ((land$Age - land$age.mat) %in% seq(0,300,40)) & (land$Tcomp >= 40)
-      # if(sum(com.chan.cells)>0 & succ.enable) {
-      #   buffer <- buffer.mig(land[, c("cell.indx", "SppGrp", "CoordX", "CoordY", "TSD", "Tcomp")],
-      #                        land[com.chan.cells, c("cell.indx", "CoordX", "CoordY")], radius.buff, nb.buff)
-      #   land$SppGrp[com.chan.cells] <- forest.trans(subset(land, select=c(cell.indx, SppGrp),
-      #                         com.chan.cells), forest.succ, buffer, suitab, dtype="S", 
-      #                         persist, p.failure, age.seed, suboptimal,enfeuil)
-      # }
-      # 
-      ## For each cell that changed composition, re-initializeTcomp
-      land$Tcomp[land$SppGrp != vec_compo_init] <- 0
+      ## Regeneration after sbw outbreak
+      buffer <- buffer.mig(land, kill.cells, potential.spp)
+      land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(filter(land, cell.id %in% kill.cells),
+                 post.sbw.reg, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+      
+      
+      ##  Regeneration after clear-cutting
+      buffer <- buffer.mig(land, cc.cells, potential.spp)
+      land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(filter(land, cell.id %in% cc.cells),
+                  post.harvest.reg, buffer, suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
+      
+      ## Natural succession of tree spp at every 40 years starting at TSDist = 70
+      if(succ.enable){
+        chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=40) %>% select(cell.id)
+        buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
+        land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
+            forest.trans(filter(land, cell.id %in% unlist(chg.comp.cells)), 
+            forest.succ, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+        ## For those cells that change composition, reset TSDist at X years before maturity
+        ## to account for the fact that a major change in species dominance is
+        ## generaly due to significant mortality in the overstory
+        a <- land[land$cell.id %in% chg.comp.cells & (land$SppGrp != initial.forest.comp),] 
+        
+        
+        new.age <- land$TSDist[chg.comp.cells & (land$SppGrp != initial.forest.comp)] - 10
+        land$TSDist[chg.comp.cells & (land$SppGrp != initial.forest.comp)] <- new.age
+        
+        
+      }
+      
+      
+      ## Now, for each cell that has changed composition (because of natural succession or regeneration
+      ## post-distrubance), re-initialize Tcomp
+      land$Tcomp[land$SppGrp != initial.forest.comp] <- 0
+      
+      
+      ## Finally, Aging: I ncrement Time Since Disturbance and Time Last Forest Composition change by time.step 
+      land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
       
-      ## For each cell that changes composition, reset TSD at x years before maturity
-      ## to account for the fact that a major change in species dominance is
-      ## generaly due to significant mortality in the overstory
-      new.age <- land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] - 10
-      land$TSD[com.chan.cells & (land$SppGrp != vec_compo_init)] <- new.age
       
-      land$TSDist <- land$TSDist + time.step
-      
-      ## At each time step, plot maps of DisturbanceTypes 
+      ## If required, plot maps of DisturbanceType at each time step 
       if(write.sp.outputs){
         MAP <- MASK
         cat("... writing output layers", "\n")
@@ -305,8 +291,6 @@ landscape.dyn <- function(scn.name){
         MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  ## 0 will be time.step
         # MAP[igni.id] <- 9
         writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
-        
-          
       }
       
     } # t
