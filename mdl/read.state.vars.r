@@ -108,8 +108,8 @@ read.state.vars <- function(work.path){
   ## 6. Initialize other state variables
   ## 6.1. Initalize the Time since last disturbance and the Type of the last disturbance
   ## The origin of any disturbance that may have impacted the study area is known.
-  land$TSDist <- NA
-  land$DistType <- NA  # chgcompo.id <- 5 (defined in define.scenario.r)
+  land$TSDist <- 400
+  land$DistType <- 0
   
   ## 6.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.

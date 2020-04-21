@@ -57,8 +57,8 @@ define.scenario <- function(scn.name){
   fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
                      # Flammability (that modify the burnt probability) of the fuel types
                      # If baseline=c(1,1,1) no effect of fuel.types on fire spreading/burning
-  wflam <- 0.6 # Weight spp flammability in fire spread rate
-  wwind <- 0.4 # Weight wind in fire spread rate
+  wflam <- 0.7 # Weight spp flammability in fire spread rate
+  wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
   pb.upper.th <- 0.8 # prob.burning >= th --> cell always burns
   pb.lower.th <- 0.1 # prob.burning < th --> cell never burns

@@ -122,11 +122,11 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
       ## Start speading from active cells (i.e. the fire front)
       while(pxlburnt<fire.size.target){
         
-        ## Build a data frame with the theoretical 8 neighbours of cells in fire.front, 
+        ## Build a data frame with the theoretical 4 neighbours of cells in fire.front, 
         ## Add the wind direction and the distance.
         ## Filter neighbours in the study area and that have not been visited yet
         ## Then, look for their default flammability
-        neigh.id <- data.frame(cell.id=rep(fire.front, each=default.nneigh)+ rep(default.neigh$x, length(fire.front)),
+        neigh.id <- data.frame(cell.id=rep(fire.front, each=default.nneigh) + rep(default.neigh$x, length(fire.front)),
                                source.id=rep(fire.front, each=default.nneigh),
                                windir=rep(default.neigh$windir, length(fire.front)) ) %>%
                     filter(cell.id %in% land$cell.id) %>% filter(cell.id %notin% visit.cells) %>%

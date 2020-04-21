@@ -59,7 +59,7 @@ play.landscape.dyn <- function(){
   scn.name <- "Test01"
   define.scenario(scn.name)
   fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
-  write.sp.outputs <- F
+  write.sp.outputs <- T
   dump(c("fuel.types.modif", "write.sp.outputs"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
