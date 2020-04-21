@@ -26,19 +26,18 @@
           # subland  <- filter(land, cell.id %in% burnt.cells)
           # prob.reg <- post.fire.reg
 #
-         subland  <- filter(land, cell.id %in% unlist(chg.comp.cells))
-         prob.reg <- forest.succ
+         # subland  <- filter(land, cell.id %in% unlist(chg.comp.cells))
+         # prob.reg <- forest.succ
 
 forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){
   
-  ## Tracking
-  cat("Forest transition", "\n")
-  
-  
   ## If target data.frame is empty
   if(nrow(subland)==0)
     return(numeric())
+    
+  ## Tracking
+  cat(paste("Forest transition type", dtype), "\n")
   
   ## Keep the current species in case any potential species can colonize the site.
   ## In that case, the current species, persist.
@@ -53,9 +52,9 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
 
   # Eufeuillement volontaire suite aux coupes
   if(dtype=="C" & enfeuil>0){  
-      vec.enfeuil  <- land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans
-      vec.enfeuil2 <- (vec.enfeuil) + ((runif(length(vec.enfeuil))<enfeuil )*1000)
-      land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans <- vec.enfeuil2
+    vec.enfeuil <- filter(subland, SppGrp %in% c("EPN","SAB") & PotSpp=="PET") %>% select(ptrans)
+    vec.enfeuil <- vec.enfeuil + (runif(length(vec.enfeuil))<enfeuil)*1000
+    subland$ptrans[subland$SppGrp %in% c("EPN","SAB") & subland$PotSpp=="PET"] <- vec.enfeuil
   }
   
   ## Reburning case: If burnt stands are too young, probability of successful natural regeneration is lower

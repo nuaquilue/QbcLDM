@@ -142,9 +142,6 @@ wildfires <- function(land, file.num.fires, file.fire.sizes, fire.rate.increase,
                      # summarize(flam=max(flam)/wflam, wind=max(wind)/wwind, sr=max(sr), pb=max(pb)) 
                      summarize(sr=max(sr), pb=max(pb)) 
         sprd.rate$burning <-runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
-        if(length(duplicate(sprd.rate$cell.id))>0){
-          print(sprd.rate)
-        }
             # if(nrow(sprd.rate)>0)
             #   track.sprd <- rbind(track.sprd, data.frame(zone=izone, fire.id=fire.id, cell.id=sprd.rate$cell.id,
             #                                   step=fire.step, flam=sprd.rate$flam, wind=sprd.rate$wind,

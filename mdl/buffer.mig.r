@@ -25,9 +25,6 @@
  
 buffer.mig <- function(land, target.cells, potential.spp){
   
-  ## Tracking
-  cat("Buffer migration", "\n")
-  
   ## If target data.frame is empty
   if(length(target.cells)==0)
     return(numeric())

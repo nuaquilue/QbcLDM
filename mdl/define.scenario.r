@@ -85,7 +85,7 @@ define.scenario <- function(scn.name){
   
   ## VEGETATION DYNAMICS parameters:
   succ.enable <- TRUE # enable natural succession every 40 years (if FLASE, composition remains the same)
-  enfeuil <- 0
+  enfeuil <- 0.5
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
   suboptimal <- 0.5  # tolerance for sub optimal conditions

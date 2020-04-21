@@ -19,9 +19,6 @@
 
 suitability <- function(land, temp.suitability, precip.suitability, soil.suitability, suboptimal){
   
-  ## Tracking
-  cat("Spp suitability", "\n")
-  
   # Vector with Potential Species
   PotSpp <- levels(land$SppGrp)
   PotSpp <- PotSpp[PotSpp!="NonFor"]

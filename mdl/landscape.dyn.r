@@ -73,6 +73,7 @@ landscape.dyn <- function(scn.name){
   track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
                                     C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
+  track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, atarget.modif=NA, aburnt=NA)
@@ -96,29 +97,27 @@ landscape.dyn <- function(scn.name){
       sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
 
     
-    ## Record species distribution at time = 0 per fire zone, and distribution of age classes per BCDomain
-    track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=year.ini, 
+    ## Record initial species distribution per fire zone, and distribution of age classes per BCDomain
+    track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=0, 
                               group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
-    track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=year.ini, 
+    track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=0, 
                               group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
                               C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
                               C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
-    ## Record suitability classes per BCDomain at time = 0
+    ## Record initial suitability classes per BCDomain 
     suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
     aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
            group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
-                                                    med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
-    track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=year.ini, aux))
+           med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
+    track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
     rm(suitab); rm(aux)
-
+    ## Calculate the baseline fuel at the fire regime zone and track it
+    baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
+    track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=0, baseline.fuel))
 
     # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
     # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
     ref.harv.level <- table(land$MgmtUnit)*0 
-    
-    
-    ## Calculate the baseline fuel at the fire regime zone 
-    baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
     
     
     ## Start 
@@ -207,9 +206,9 @@ landscape.dyn <- function(scn.name){
       # la premi?re p?riode, en appliquant une p?nalit? (a.priori). Ce niveau de r?colte (ref.harv.level)
       # en coupe totale est maintenu tel quel durant les p?riodes subs?quentes.
       if (t==5) {
-        ref.harv.level  <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
+        ref.harv.level  <- table(land$MgmtUnit[land$cell.id %in% cc.cells])
         if(irun==1) {
-          ref.harv.level.cp <- table(land$MgmtUnit[land$cell.indx %in% pc.cells])
+          ref.harv.level.cp <- table(land$MgmtUnit[land$cell.id %in% pc.cells])
           ref <- cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel
           write.table(ref, file = paste0(out.path, "/InitialHarvestLevel.txt"),
                           quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
@@ -252,21 +251,18 @@ landscape.dyn <- function(scn.name){
       
       ## Natural succession of tree spp at every 40 years starting at TSDist = 70
       if(succ.enable){
+        cat("Natural succession", "\n")
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=40) %>% select(cell.id)
         buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
         land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
             forest.trans(filter(land, cell.id %in% unlist(chg.comp.cells)), 
             forest.succ, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
-        ## For those cells that change composition, reset TSDist at X years before maturity
+        ## For those cells that change composition, reset TSD at X years before maturity
         ## to account for the fact that a major change in species dominance is
         ## generaly due to significant mortality in the overstory
-        a <- land[land$cell.id %in% chg.comp.cells & (land$SppGrp != initial.forest.comp),] 
-        
-        
-        new.age <- land$TSDist[chg.comp.cells & (land$SppGrp != initial.forest.comp)] - 10
-        land$TSDist[chg.comp.cells & (land$SppGrp != initial.forest.comp)] <- new.age
-        
-        
+        land$Age[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] <- 
+          land$AgeMatu[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] - 
+          sample(seq(10,40,5),1)
       }
       
       
@@ -279,6 +275,23 @@ landscape.dyn <- function(scn.name){
       land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
       
+      
+      
+      ##################################### TRACKING AND SPATIAL OUTS #####################################
+      track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=t+year.ini, 
+                                group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
+      track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=t+year.ini, 
+                                  group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
+                                  C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
+                                  C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
+      suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
+      aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
+              group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
+              med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
+      track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=t+year.ini, aux))
+      aux <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
+      track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=t+year.ini, aux))
+      rm(suitab); rm(aux)
       
       ## If required, plot maps of DisturbanceType at each time step 
       if(write.sp.outputs){
@@ -301,8 +314,12 @@ landscape.dyn <- function(scn.name){
   write.table(track.spp.frzone[-1,], paste0(out.path, "/SppByFRZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
+  track.land.fuel[,4] <- round(track.land.fuel[,4], 3)
+  write.table(track.land.fuel[-1,], paste0(out.path, "/FuelLand.txt"), quote=F, row.names=F, sep="\t")
+  track.fire.regime[,8] <- round(track.fire.regime[,8], 2) 
   write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
+  track.fuels[,5:6] <- round(track.fuels[,5:6], 2)
   write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
   
   toc()
