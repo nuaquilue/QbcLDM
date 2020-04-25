@@ -1,7 +1,7 @@
 ---
 title: "Modelling wildfires in Quebec Landscape Dynamic Model - QbcLDM"
 author: "Núria Aquilué"
-date: "21/04/2020"
+date: "25/04/2020"
 output:  pdf_document
 ---
 
@@ -70,6 +70,7 @@ Type      SppGrp                              Modif
 2         "PET", ("EPN", "SAB", Age<=40)      0.4
 3         "EPN", "SAB" Age<=40                0.95 
 --------  ----------------------------------  ----------------
+where, "BOJ" is Yellow birch, "EPN" is Black spruce, "ERS" is Sugar maple, "PET" is Trembling aspen, "SAB" is Balsam fir, "oter" is the aggrupation of all other forest species, and "NonFor" is a burnable but non-forest land-cover type.  
 
 The current baseline fuel load, the fuel load at the end of the period, and the modifying factor (when only simulating wildfires, post-fire regeneration and natural sucession) are respectively:
 ```{r baseline, echo=F}
@@ -89,63 +90,126 @@ kable(modif.fuels)
 
 ### Questions, Doubts, Ideas 
 
-1. How are the homogeneous fire regime zones defined? Which are the base variables used to classify the study area in these four fire regime zones? Maybe this information is specified in the first paper.    
+1. How are the homogeneous fire regime zones defined? Which are the base variables used to classify the study area in these four fire regime zones? *MB: Read the doc about systematic fire zonation. Ongoing project to delimiate ~15 zones*.    
    
-2. Will be essential that these fire regime zones become dynamic in a context of global change?    
+2. Will be essential that these fire regime zones become dynamic in a context of global change? *MB: No, these deliniations will remain*.  
   
-3. I don't think that number of fires nor fire sizes have to be modified by fuel types (even if as currently implemented, fuels spatial distribution barely modify fire regime). In my oppinion, fuels should only influence the process of fire sperading and thus spread rate and probability of burn. **TO BE DISCUSSED**. 
+3. I don't think that number of fires nor fire sizes have to be modified by fuel types (even if as currently implemented, fuels spatial distribution barely modify fire regime). In my oppinion, fuels should only influence the process of fire sperading and thus spread rate and probability of burn. *MB: I agree, but then fire sizes should be an emergent property instead of something picked from a distribution. This is why I used zone-level fuel load as a proxy to modify fire sizes*.  
    
-4. Which is the fire database used to fit the Poisson distributions Number of fires per fire step?  
-I looked for data in the *Canadian National Fire Database*, [CNFDB](https://cwfis.cfs.nrcan.gc.ca/ha/nfdb) (Fig. 1).  
-I overlapped fire peimeters with fire regime zones and retrieve the mean number of fires per zone every year and every 5-year period. I tryeid to fit these empirical distributions to theoretical Poisson distributions but I didn't get successful results.    
-Wrongly (I think), in the last model's version, the number of fires was calculated as follows:  
+4. Which is the fire database used to fit the Poisson distributions Number of fires per fire step? I looked for data in the Canadian National Fire Database, [CNFDB](https://cwfis.cfs.nrcan.gc.ca/ha/nfdb) (Fig. 1).  
+I overlapped fire perimeters with fire regime zones and retrieved the mean number of fires per zone, every year and every 5-year period. I tried to fit these empirical distributions to theoretical Poisson distributions but I didn't get successful results. *MB: Poisson distribution parameter  was obtained by iteration to make sure that the fire cycle is realistic according to a literature review*.  
+
+5. Wrongly (I think), in the last model's version, the number of fires was calculated as follows:  
 `num.fires <- nf.dist$lambda[nf.dist$zone==zone] * fire.step * (1+(t*fire.rate.increase))`  
-This means, that at the end of the period, the number of fires in zone A (assuming `fire.rate.increase=0`) is always `r 2.6*(2095-2010)`.  
-**TO BE IMPROVED**   
-The question is then:  
-*How climate change and landscape forest composition influences fire regime and how we can model it?*  
+This means, assuming that `fire.rate.increase=0`, the number of fires in zone A, B, C, and D are always `r 2.6*5`,  `r 2.7*5`,  `r 2.9*5`, and  `r 1*5`, respectively.  
+*MB: I forced the number of fires following a comment by Alain Leduc and Annie Belleau that there was too much variability for nothing*.  
+
+6. The big question is then: **How will both climate change and landscape forest composition influence fire regime and how we can model it?**  
+
 
 ![Fire perimeters greater than 200 ha, 1970's - 2018](C:/WORK/QBCMOD/DataIn/FiresPerZone.png)  
 
-5. Fire ignitions locations of fire of size greater than 200 ha is also available at [CNFDB](https://cwfis.cfs.nrcan.gc.ca/ha/nfdb) (Fig. 2). The cause of fires is reported (e.g. U - unknown, L - lightning, H - human, H.PB - prescribed burn, and Re - reburn). In Fig. 2, red points are human caused fires, grey points are lightnings and black points are ignitions of unknown causes. This information can be useful to initalize a probability ignition layer or even better, find a relationship between fire ignitions and landscape composition / weather. The relationship could be then included in the model so probabaility of fire ignition is dynamically updated at every time step. **TO BE EXPLORED**.  
+
 
 ![Fire ignitions of fires greater than 200 ha, 1970's - 2018](C:/WORK/QBCMOD/DataIn/IgnitionsPerZone.png)      
 
-6. One of the products of the MFFP project is to have a zonation for fires.Am I right? Is this already available? Which will be the source information and variables to produce such cartography? Could it be useful to spatialize fire regime modelling in our framework? **TO BE CLARIFIED**.  
+7. Fire ignitions locations of fire of size greater than 200 ha is also available at [CNFDB](https://cwfis.cfs.nrcan.gc.ca/ha/nfdb) (Fig. 2). The cause of fires is reported (e.g. U - unknown, L - lightning, H - human, H.PB - prescribed burn, and Re - reburn). In Fig. 2, red points are human caused fires, grey points are lightnings and black points are ignitions of unknown causes. This information can be useful to initalize a probability ignition layer or even better, find a relationship between fire ignitions and landscape composition / weather. The relationship could be then included in the model so probabaility of fire ignition is dynamically updated at every time step. *MB: We believe that fire ignitions are mainly associated with abiotic features (landform, wind patterns, etc.) that are expected to remain constant in the future. So, we should have a capability to modulate these ignitions spatially, but entering into a detailed study of what are the key explanatory factors is outside our scope*.  
 
-7.   
 
+8. One of the products of the MFFP project is to have a zonation for fires. Is this already available? Which will be the source information and variables to produce such cartography? Could it be useful to spatialize fire regime modelling in our framework? *MB: We probably can use a preliminary version, but I expect that this paper will be published before the fire zonation study*.
+  
 
 # Modelling fire events
 
 Per each fire regime zone, once the number of fires is fixed, the algorithm of fire spreading and burning for each fire event is as follows:  
 
 1. Determine target area (in km^2^) and convert to target size (in pixels).  
-2. Select a fire wind direction `fire.wind` according to S - 10%, SW - 30%, W - 60.  
+2. Select a fire wind direction `fire.wind` (that will remain constant for the whole fire event) according to S - 10%, SW - 30%, W - 60.  
 3. Pick up an ignition location according to the ignition probability. This location starts the fire front. Track this location as both, burnt cell and visited cell.    
 4. While the number of burnt cells < target size, fire front will spread to the neighbours and burn some of these cells.  
     * Find the 4 closest neighbours of all cells in the fire front. Keep only those belonging to the study area and have not been visited yet.  
-    * For these neighbouring cells compute `sr = wflam * fuel + wwind * (neigh.dir-fire.wind)` where `wflam` and `wwind` are weigthing factors summing up 1, `fuel` is the fuel modifying factor, and `neigh.dir` is the direction from source to sink locations.  Then, compute `pb=1+rpb*log(sr)` where `rpb` is a parameter controlling the range of burning probabilities (and also the formation of fire islands).  
+    * For these neighbouring cells compute `sr = wflam * fuel + wwind * (neigh.dir-fire.wind)` where `wflam` and `wwind` are weigthing factors summing up 1, `fuel` is the fuel modifying factor, and `neigh.dir` is the direction from source to sink locations.  Then, compute `pb=1+r*log(sr)` where `r` is a parameter controlling the range of burning probabilities (and also the formation of non-burnt islands within the fire perimeter).  
     *  Randomly burnt cells according to `pb` but always burn those cells when `pb>=pb.upper.th` and never burn those cells when `pb<pb.lower.th`. Increase accordingly the number of burnt cells.  
     * Record all burnt and unburnt neighbours as visit cells.  
     * The fire front is formed now by the recently burnt cells.     
      
-I've detected that sometimes fires (often big ones) stop before reaching target area. I've introduced in the algorithm a condition to let's say "reuse" a target size if it is bigger than 200 km^2^ and 50% has not been burnt. By reusing it, I mean the model starts a new fire event with burn this same target size.  
+I've detected that sometimes fires (often big ones) stop before reaching target area. I've introduced in the algorithm a condition to let's say "reuse" a target size if it is bigger than 200 km^2^ and at least 50% has not been burnt. By reusing it, I mean the model starts a new fire event that will try to burn the reused target size. This new fire event do not burns only the remaining area, in such case, many little fires will make up the size of a big fire, and I think big fires new to be simulated as the post-fire regeneration of ones or the others is different because of neigbouring conditions.  
+     
+How the parameter `r` modifes `pb` is:  
+```{r rpb, echo=F}
+library(ggplot2)
+library(viridis)
+sr <- seq(0.01, 1, 0.01)
+rbp <- seq(0.1,0.9,0.2)
+dta <- data.frame(sr, r=0.1, pb=1+0.1*log(sr))
+dta <- rbind(dta, data.frame(sr, r=0.3, pb=1+0.3*log(sr)))
+dta <- rbind(dta, data.frame(sr, r=0.5, pb=1+0.5*log(sr)))
+dta <- rbind(dta, data.frame(sr, r=0.7, pb=1+0.7*log(sr)))
+dta <- rbind(dta, data.frame(sr, r=0.9, pb=1+0.9*log(sr)))
+dta$r <- as.factor(dta$r)
+ggplot(data=dta, aes(x=sr, y=pb, group=r)) +
+  geom_line(aes(color=r), size=1.5) + theme_classic() + scale_color_brewer(palette="Accent")  +
+  geom_hline(yintercept=0, linetype="dashed", color = "black") +
+  geom_hline(yintercept=0.5, linetype="dashed", color = "grey60") 
+```
+  
+
 
 ### Fire wind
 
-Consult the Climate Normals of Canada:  
-https://cran.r-project.org/web/packages/weathercan/vignettes/glossary_normals.html
+The aim was to find out the prevalent wind directions in the study area.  
 
-Find out 11 stations with montly and annualy wind direction informed.  
+I consulted the Climate Normals and Averages of Canada provided by Environment and Climate Change Canada in the R-package `weathercan`, [link](https://cran.r-project.org/web/packages/weathercan/vignettes/glossary_normals.html).  
 
-Retrieve the % of annual wind direction.  
+The climate normals are averages of climatic variables recorded in weather station across Canada.  
+I selected those weather stations in Quebec with Normal wind direction informed. I found out 11 stations with montly and annualy wind direction informed. I verified that for all stations, annual main wind direction match wind directions of June to September. Finally, I retrieve the percentage of prevalence for each wind direction.  
 
-**TO BE DONE**: Do a tesselation of the study area based on these 11 meteorological stations, or a buffer around them to make main wind direction spatially explicit.  
+```{r normals, echo=F}
+library(weathercan)
+library(tidyverse)
+
+# Filter stations
+stations.wind <- filter(normals_measurements, prov=="QC" & stringr::str_detect(measurement, "wind_dir")) 
+info.stations <- filter(stations, climate_id %in% unique(stations.wind$climate_id), interval=="month") %>%
+  select(prov, station_name, climate_id, lat, lon, elev, start, end)
+kable(info.stations)
+# Get data
+n <- normals_dl(unique(stations.wind$climate_id))
+winds <- data.frame(id=NA, m1=NA, m2=NA, m3=NA, m4=NA, m5=NA, m6=NA, m7=NA, m8=NA,
+                    m9=NA, m10=NA, m11=NA, m12=NA, my=NA)
+for(i in 1:nrow(n)){
+  w <- n$normals[[i]]$wind_dir
+  winds <- rbind(winds, c(n$climate_id[i], w))
+}
+winds <- winds[-1,]
+kable(winds, row.names = F)
+kable(round(table(winds$my)/11,1))
+
+```
+
+The stations and main wind directions in Quebec province (according to Normals of ECCC) are:
+```{r mapwind, echo=F, warning=F, message=F}
+library(maps)
+library(mapdata)
+info.stations$wind <- winds$my  
+wind.col <- data.frame(wind=c("S", "SW", "W"), col=c("purple", "darkgreen", "yellow"))
+info.stations <- dplyr::left_join(info.stations, wind.col)
+map("worldHires", "Canada", xlim=c(-100,-30), ylim=c(40,70), col="gray85", fill=TRUE)
+map("worldHires","usa", xlim=c(-100,-30), ylim=c(43,64), col="gray95", fill=TRUE, add=TRUE)
+# points(info.stations$lon, info.stations$lat, pch=19, col="red", cex=1)
+points(info.stations$lon, info.stations$lat, pch=19, col=info.stations$col, cex=1)
+legend(-50, 60, title="Wind dir", legend=c("S", "SW", "W"), pt.cex=2.5, col='black', 
+       pch=21, pt.bg=c("red", "black", "green"), bty="n") 
+map.scale(-60, 43, ratio=FALSE, relwidth=0.1, cex=0.8)
+
+```
+
+**TO BE DISCUSSED**: I though I could do a tesselation of the study area based on the wind directions of these 11 meteorological stations. But as most of these stations concentrate in the south of the province (within fire regime zone A, where wildfires are not frequent), I don't think this approach will be useful. Instead, I propose that in zone B, C and D all main wind directions are **W** (80%) or **SW** (20%).
+
 
 ### Examples 
 
-Spatial distribution of fire perimeters (in a single run, in a single time step):
+Spatial distribution of fire perimeters (in a single run, in a single time step) when  `fire.rate.increase=0.1`:
 
 ![Fires of year 2020](C:/WORK/QBCMOD/QbcLDM/outputs/Test01/FiresMdl2020.png)   
   

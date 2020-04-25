@@ -301,7 +301,7 @@ landscape.dyn <- function(scn.name){
         # sizes <- filter(track.fire, year==t) %>% group_by(swc, fire.id) %>% summarise(ab=aburnt.highintens+aburnt.lowintens)
         # Ignitions' cell.id 
         # igni.id <- burnt.cells[c(1,cumsum(sizes$ab)[1:(nfire-1)]+1)] 
-        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  ## 0 will be time.step
+        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  
         # MAP[igni.id] <- 9
         writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
       }
