@@ -1,7 +1,7 @@
 ######################################################################################
 ###  age.by.spp()
 ###
-###  Description >  Report the age class abundance per vegetation type. Called in landscape.dyn.
+###  Description >  Reports the age class abundance per stand type. Called in landscape.dyn.
 ###
 ###  Arguments >  
 ###   land : data frame of the state variables       
@@ -10,7 +10,7 @@
 ###   irun : the current replica (used when writing results)
 ###   t : the current time step  (used when writing results)
 ###
-###  Details > Counts the cells in each age invterval of 20 years for each vegetation class.
+###  Details > Counts the cells in each age interval of 20 years for each species.
 ###
 ###  Value > It writes a data frame with the assessment of age class per species group.
 ######################################################################################
@@ -32,16 +32,15 @@ age.by.spp <- function(land, km2.pixel, min.time.step, irun, t){
   levels(subland$AgeClass) <- c(levels(subland$AgeClass),
                               all.levels[!(all.levels %in% levels(subland$AgeClass))])
   
-  # Number of Bioclimatic Domains (ecozones), Species Groups and Age Classes  
+  # Number of Ecozones (bioclimatic domains), Species Groups and Age Classes  
   nBCDomain <- length(levels(subland$BCDomain))
   nSppGrp <- length(levels(subland$SppGrp))
   nAgeClass <- length(levels(subland$AgeClass))
   
-  # Count the cells in each Age Class per Bioclimatic Domain (in pixels)
-  # 'split' functions returns a list, each element corresponds to a Bioclimatic Domain (ecozone)
-  # then 'tapply' assess the age distribution per Species Group, it returns a list of
-  # as many elements as number of species groups. Each element is a vector with 6 values: 
-  # the number of cells per age class   
+  # Counts the cells in each Age Class per Bioclimatic Domain (in pixels)
+  # 'split' function returns a list, each element corresponds to a Bioclimatic Domain (ecozone)
+  # then 'tapply' assesses the age distribution per Species Group, it returns a list of
+  # as many elements as there are species groups.
   
   domains <- unique(subland$BCDomain)
   tab_so <- table(subland$SppGrp,subland$AgeClass,subland$BCDomain)

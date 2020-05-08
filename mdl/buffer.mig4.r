@@ -34,7 +34,8 @@ buffer.mig <- function(microland, target.cells, radius.buff, nb.buff){
   micro.epn <- microland[microland$SppGrp=="EPN" & microland$TSD >= 50 & microland$Tcomp >= 50,]
   micro.sab <- microland[microland$SppGrp=="SAB" & microland$TSD >= 50 & microland$Tcomp >= 50,]
   
-  ### Calculate number of source populations in the neighbohood of each target cell 
+  ### Calculate number of source populations in the neighbohood of each target cell. Colonization distances
+  ### are species-specific.
   # PET
   list.cell.buff <- nn2(micro.pet[,c("CoordX","CoordY")], target.cells[,c("CoordX","CoordY")], 
                         k=nb.buff[1] , searchtype='priority')
@@ -60,8 +61,9 @@ buffer.mig <- function(microland, target.cells, radius.buff, nb.buff){
                         k=nb.buff[5],  searchtype='priority')
   nn.dists.epn <- list.cell.buff$nn.dists[,nb.buff[5]]< radius.buff[5]
   
-  # Build a data frame with the presence or abscence of a sufficient number of
-  # source populations of each species around each target cell
+  # Build a data frame with the presence or absence of a sufficient number of
+  # source populations of each species around each target cell. Currently set
+  # at one in all scenarios, but could be modified.
   
   target.df <- data.frame(target.cells, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, SAB=nn.dists.sab, 
                           EPN=nn.dists.epn, other=TRUE, NonFor=TRUE)

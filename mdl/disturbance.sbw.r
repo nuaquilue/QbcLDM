@@ -48,8 +48,8 @@ disturbance.sbw <- function(subland, severity, write.tbl.outputs=T,
   sbw.age  <- ifelse(subland$TSD > 60 & subland$TSF !=0  , 1, 
                              ifelse(subland$TSD > 30 & subland$TSF !=0, 0.8, 0.6))
   # three compositions, defined in the highly favorable zone: fir (0.5), EPN (0.15), others (0)
-  sbw.comp <- ifelse(subland$SppGrp == "SAB", 0.6, 
-                            ifelse(subland$SppGrp =="EPN", 0.1, 0))  
+  sbw.comp <- ifelse(subland$SppGrp == "SAB", 0.4, 
+                            ifelse(subland$SppGrp =="EPN", 0.05, 0))  
 
   prob <- sbw.clim*sbw.age * sbw.comp * (severity) 
 
@@ -65,14 +65,17 @@ disturbance.sbw <- function(subland, severity, write.tbl.outputs=T,
 #                file=paste0(out.path, "/Epidemic.txt"), append=!out.overwrite, quote=F,
 #                sep="\t", row.names=F , col.names=out.overwrite)
 #  }
-  load(file=paste0("inputlyrs/rdata/mask", name.resol, ".rdata"))
-   MASK[!is.na(MASK)] <- as.factor(ifelse(prob==0, 1,
-                                         ifelse (prob<0.2,2,
-                                                 ifelse(prob<0.4,3,
-                                                        ifelse(prob<0.6,4,
-                                                               ifelse(prob<0.8,5,6))))))
-  image(MASK,col=c("grey","pink","pink","pink","red","red","red"))
-  print(paste(t,table(as.data.frame(MASK))))
+
+#  load(file=paste0("inputlyrs/rdata/mask", name.resol, ".rdata"))
+#   MASK[!is.na(MASK)] <- as.factor(ifelse(prob==0, 1,
+#                                         ifelse (prob<0.2,2,
+#                                                 ifelse(prob<0.4,3,
+#                                                        ifelse(prob<0.6,4,
+#                                                               ifelse(prob<0.8,5,6))))))
+#  image(MASK,col=c("grey","pink","pink","pink","red","red","red"))
+#  print(paste(t,table(as.data.frame(MASK))))
+  
+  
   print(paste("clim - ",mean(sbw.clim)))
   print(paste("age - ",mean(sbw.age)))
   print(paste("comp - ",mean(sbw.comp)))

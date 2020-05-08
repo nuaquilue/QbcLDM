@@ -14,7 +14,6 @@
 ###   dtype: disturbance type B=burn, C=clearcut, S=succession
 ###   persist: is it a simulation scenario where species persistence in the face of unsuitable 
 ###            conditions is allowed
-###   p.accid: probability of regeneration failaure in young stands (burned)
 ###
 ###
 ###   Details > It is a generic function that applies any species transition matrix 
@@ -30,7 +29,7 @@
 #          subland  <- subset(land, select=c(cell.indx, SppGrp), land$TSC == 0)
 #          prob.reg <- post.harvest.reg
 
-forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.failure, age.seed, Subopt){
+forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.failure, age.seed, Subopt,enfeuil){
   
   # if empty data.frame
   if(nrow(subland)==0)
@@ -60,12 +59,22 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.fa
      } 
     
     
+  #enfeuil=0.5 
+  # Eufeuillement volontaire suite aux coupes
+  if(dtype=="C"& enfeuil>0){  # dtype="B"
  
-  # Reburning case: if burnt stands too young, probability of successful natural regen is lower
-  if(dtype=="B"){  # dtype="B"
-      land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans <- 
-      land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans * (1-p.failure)
+      vec.enfeuil  <- land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans
+      vec.enfeuil2 <- (vec.enfeuil) + ((runif(length(vec.enfeuil))<enfeuil )*1000)
+      land.prob[land.prob$SppGrp %in% c("EPN","SAB") & land.prob$PotSpp=="PET",]$ptrans <- vec.enfeuil2
   }
+  
+  # Reburning case: if burnt stands too young, probability of successful natural regen is lower
+
+  if(dtype=="B"){ 
+    land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans <- 
+    land.prob[land.prob$SppGrp=="EPN" & land.prob$PotSpp=="EPN"& land.prob$TSD<age.seed,]$ptrans * (1-p.failure)
+  }
+  
   
   # Stability criteria: if the species is present in the target location,
   # soil conditions are assumed to be optimal (not limiting)
@@ -74,7 +83,6 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, dtype, persist, p.fa
   land.prob$PresBuffer[land.prob$SppGrp == land.prob$PotSpp] <- 1
   land.prob$SuitSoil[land.prob$SppGrp == land.prob$PotSpp] <- 1
 
-  
   # Species persistence when climatic conditions become unfavorable: 
   # when persistence is allowed (1), there is a floor probability of self-replacement
   # corresponding to sub-optimal conditions (under the assumption that 

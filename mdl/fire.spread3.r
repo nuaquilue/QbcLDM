@@ -1,7 +1,8 @@
 ######################################################################################
 ###  fire.spread()
 ###
-###  Description >  Simulates fire spread from ignitions points according to a spread probability
+###  Description >  Simulates fire spread from ignitions points according to a spread probability.
+###                 Called in disturbance.fire.
 ###
 ###  Arguments >  
 ###   landscape : raster of the species 
@@ -19,8 +20,8 @@
 ###
 ###  Details > Adapted from SpaDES:spread function 
 ###
-###  Value >  A list of two elements, the first is a vector of the indexes of the burnt cells,
-###           the second is a vector of the effective burnt area per fire
+###  Value >  A list of two elements, the first is a vector of the indexes of the burned cells,
+###           the second is a vector of the effective burned area per fire
 ######################################################################################
 
 
