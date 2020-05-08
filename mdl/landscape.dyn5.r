@@ -15,7 +15,7 @@
 ###  Value > Tabular and spatial outputs are written in 'out.path' directory if  
 ###          'write.tbl.outputs' and 'write.sp.outputs' are TRUE respectively.  
 ######################################################################################
-
+#test
 landscape.dyn <- function(scn.name){
   
   ## Load required packages and functions 
@@ -88,12 +88,12 @@ landscape.dyn <- function(scn.name){
      land$IQS[land$IQS < 60] <- 60
      land$IQS[land$IQS > 100 ] <- 100    
       
-    # nom à changer dans le shape - le champ "IQS" réfère en fait à l'âge de maturité et non à l'IQS
+    # nom ? changer dans le shape - le champ "IQS" r?f?re en fait ? l'?ge de maturit? et non ? l'IQS
      
     land$age.mat <- land$IQS
     
-    # pour le cas d'un calcul avec integration a priori du risque de feu, on crée une matrice 
-    # qui contiendra le niveau de récolte à maintenir sur tout l'horizon
+    # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
+    # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
      
     ref.harv.level <- table(land$MgmtUnit)*0 
       
@@ -102,7 +102,7 @@ landscape.dyn <- function(scn.name){
     
     ## Re-equilibrate the age class distribution of locations with age <= 20 years
     ## to compensate for a lack of precision in the initial values
-    ## for regenerating stands (due to the state of forest inventories in Québec)
+    ## for regenerating stands (due to the state of forest inventories in Qu?bec)
     land$TSD[land$TSD<=20] <- sample(c(5,10,15,20), size=sum(land$TSD<=20), replace=TRUE)
 
     ## Initalize the TSF, TSW, TSE, TSC, TSPC state variables at -1,
@@ -197,9 +197,9 @@ landscape.dyn <- function(scn.name){
       }     
       length(cc.cells)
       
-      # Lorsque l'option 'a priori' est sélectionnée, le niveau de référence est calculé durant
-      # la première période, en appliquant une pénalité (a.priori). Ce niveau de récolte (ref.harv.level)
-      # est maintenu tel quel durant les périodes subséquentes.
+      # Lorsque l'option 'a priori' est s?lectionn?e, le niveau de r?f?rence est calcul? durant
+      # la premi?re p?riode, en appliquant une p?nalit? (a.priori). Ce niveau de r?colte (ref.harv.level)
+      # est maintenu tel quel durant les p?riodes subs?quentes.
       
           if (t==5) {
               ref.harv.level <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
@@ -211,11 +211,11 @@ landscape.dyn <- function(scn.name){
       # 
       ## 5. PARTIAL CUTING
       
-      ## On condidère que la rotation de coupe partielle (temps minimal entre deux coupes partielles) 
-      ## correspond à la moitié de l'âge d'admissibilité pour la coupe totale (land$age.mat).
+      ## On condid?re que la rotation de coupe partielle (temps minimal entre deux coupes partielles) 
+      ## correspond ? la moiti? de l'?ge d'admissibilit? pour la coupe totale (land$age.mat).
       
-      ## TSPC = temps depuis coupe partielle. Fixé à 0 si le peuplement a été affecté récemment par une
-      ## perturbation sévère
+      ## TSPC = temps depuis coupe partielle. Fix? ? 0 si le peuplement a ?t? affect? r?cemment par une
+      ## perturbation s?v?re
       
       land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       
