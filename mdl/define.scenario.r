@@ -103,7 +103,7 @@ define.scenario <- function(scn.name){
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
   post.fire.reg <- read.table("inputfiles/PostFireReg.txt", header=T)
-  post.sbw.reg <- read.table("inputfiles/PostSBWReg.txt", header=T)
+  # post.sbw.reg <- read.table("inputfiles/PostSBWReg.txt", header=T)
   # post.wind.reg <- read.table("inputfiles/PostWindReg.txt", header=T)
   post.harvest.reg <- read.table("inputfiles/PostHarvestReg.txt", header=T)
   forest.succ <- read.table("inputfiles/ForestSucc.txt", header=T)
