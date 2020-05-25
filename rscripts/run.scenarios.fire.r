@@ -10,7 +10,7 @@ rm(list = ls())
 
 setwd("C:/Users/boumav/Desktop/QbcLDM")
 
-# Load the model
+# Load the model 
 source("mdl/define.scenario.r")  
 source("mdl/landscape.dyn8.r")
 
