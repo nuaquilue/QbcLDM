@@ -1,5 +1,0 @@
-zone	lambda	max.nfires
-ZA	2.6	2000
-ZB	2.7	300
-ZC	2.9	300
-ZD	1	300

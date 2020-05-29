@@ -32,6 +32,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/fuel.type.r")  
   
   tic("  t")
+  options(warn=-1)
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
@@ -62,6 +63,7 @@ landscape.dyn <- function(scn.name){
 
   ## Build the discrete time sequence according to time.step
   ## 0  5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85
+  ## lenght(time.seq) is 18
   time.seq <- seq(0, time.horizon, time.step) 
   
   
@@ -76,7 +78,7 @@ landscape.dyn <- function(scn.name){
   track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
-  track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, atarget.modif=NA, aburnt=NA)
+  track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
   
   
@@ -117,14 +119,16 @@ landscape.dyn <- function(scn.name){
 
     # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
     # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
+    ## It Calculates sustained yield level at time t = 0 (see disturbance.cc.r)
     ref.harv.level <- table(land$MgmtUnit)*0 
     
     
     ## Start 
+    t <- 0
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
-      print(paste0("run:", irun, " - time:", t+year.ini))
+      print(paste0("scn:", scn.name, " - run:", irun, " - time:", t+year.ini))
       
       ## Update climatic variables at each time step if climate change is activated
       ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
@@ -140,7 +144,7 @@ landscape.dyn <- function(scn.name){
       ## 1. FIRE
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
-        fire.out <- wildfires(land, file.num.fires, file.fire.sizes, fire.rate.increase, 
+        fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, 
                               baseline.fuel, fuel.types.modif, km2.pixel, t)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
@@ -241,7 +245,7 @@ landscape.dyn <- function(scn.name){
       ## Regeneration after sbw outbreak
       buffer <- buffer.mig(land, kill.cells, potential.spp)
       land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(filter(land, cell.id %in% kill.cells),
-                 post.sbw.reg, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+                 post.sbw.reg, buffer, suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
       
       
       ##  Regeneration after clear-cutting
@@ -249,15 +253,14 @@ landscape.dyn <- function(scn.name){
       land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(filter(land, cell.id %in% cc.cells),
                   post.harvest.reg, buffer, suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
       
-      ## Natural succession of tree spp at every 40 years starting at TSDist = 70
-      if(succ.enable){
-        cat("Natural succession", "\n")
-        chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=40) %>% select(cell.id)
+      ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
+      if(enable.succ){
+        chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
         buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
         land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
             forest.trans(filter(land, cell.id %in% unlist(chg.comp.cells)), 
-            forest.succ, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
-        ## For those cells that change composition, reset TSD at X years before maturity
+                         forest.succ, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+        ## For those cells that change composition, reset Age at X years before maturity
         ## to account for the fact that a major change in species dominance is
         ## generaly due to significant mortality in the overstory
         land$Age[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] <- 

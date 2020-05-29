@@ -37,7 +37,9 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
     return(numeric())
     
   ## Tracking
-  cat(paste("Forest transition type", dtype), "\n")
+  cat(ifelse(dtype=="B", "Forest transition post-fire", 
+        ifelse(dtype=="O", "Forest transition post-outbreak", 
+          ifelse(dtype=="C", "Forest transition post-cut", "Natural succession"))), "\n")
   
   ## Keep the current species in case any potential species can colonize the site.
   ## In that case, the current species, persist.
@@ -49,8 +51,15 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   subland <- left_join(subland, prob.reg, by="SppGrp") %>%
              left_join(buffer, by=c("cell.id","PotSpp")) %>%
              left_join(suitab, by=c("cell.id","PotSpp")) 
-
-  # Eufeuillement volontaire suite aux coupes
+  
+  ## Reset suitability for 'other species' because the group includes many species and 
+  ## it's assumed that the climate would be suitable for at least one of those species. 
+  subland$SuitClim[subland$PotSpp=="other"] <- 1
+  subland$SuitClim[subland$PotSpp=="NonFor"] <- 1
+  subland$SuitSoil[subland$PotSpp=="NonFor"] <- 1
+  
+  ## Eufeuillement volontaire suite aux coupes, that is, after clear-cut for a % of EPN and SAB
+  ## to transform to PET
   if(dtype=="C" & enfeuil>0){  
     vec.enfeuil <- filter(subland, SppGrp %in% c("EPN","SAB") & PotSpp=="PET") %>% select(ptrans)
     vec.enfeuil <- vec.enfeuil + (runif(length(vec.enfeuil))<enfeuil)*1000

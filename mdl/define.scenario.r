@@ -51,16 +51,15 @@ define.scenario <- function(scn.name){
   
   
   ## FIRE parameters: distributions of fire regime per FRZone
-  file.num.fires <- "inputfiles/NumFires.txt"
-  file.fire.sizes <- "inputfiles/FireSizesEmpiric.txt" 
-  fire.rate.increase <- 0.1     # Increase in fire frequency over the planning horizon (climate change)
+  file.fire.regime <- "inputfiles/FireRegime.txt"
+  file.fire.sizes <- "inputfiles/FireSizes.txt" 
   fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
                      # Flammability (that modify the burnt probability) of the fuel types
                      # If baseline=c(1,1,1) no effect of fuel.types on fire spreading/burning
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
-  pb.upper.th <- 0.8 # prob.burning >= th --> cell always burns
+  pb.upper.th <- 0.9 # prob.burning >= th --> cell always burns
   pb.lower.th <- 0.1 # prob.burning < th --> cell never burns
   
   ## SPRUCE BUDWORM parameters:  
@@ -84,7 +83,7 @@ define.scenario <- function(scn.name){
   
   
   ## VEGETATION DYNAMICS parameters:
-  succ.enable <- TRUE # enable natural succession every 40 years (if FLASE, composition remains the same)
+  enable.succ <- TRUE # enable natural succession every 40 years (if FLASE, composition remains the same)
   enfeuil <- 0.5
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands

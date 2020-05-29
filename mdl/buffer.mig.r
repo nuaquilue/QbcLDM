@@ -38,21 +38,18 @@ buffer.mig <- function(land, target.cells, potential.spp){
                            PotSpp=rep(c("other", "NonFor"), each=length(target.cells)),
                            PressBuffer=TRUE)
   
-  ## Verify whether the closest neighs of each potential spp are close of enought of the target cell to be colonized
+  ## Verify whether the closest neighs of each potential spp are close 
+  ## enought of the target cell to be colonized
   for(ispp in 1:nrow(potential.spp)){
     ## Find the first closest 50 neighbors (50*2000m = 10.000m) in the subset of cells with the potential species 
     ## Source cells (i.e. potential colonizers) have minimal age of 50 years and minimal time of last species change 
     ## composition also 50 year.
-    list.cell.buff <- nn2(filter(land, SppGrp %in% potential.spp$PotSpp[ispp], Age>=50, Tcomp>=50) %>% select(x,y),
+    list.cell.buff <- nn2(filter(land, SppGrp %in% potential.spp$spp[ispp], Age>=50, Tcomp>=50) %>% select(x,y),
                           target.coord, k=50, searchtype='priority')
     
     ## Now verify if the potential species are close enough of the target cells, the colonization distance is species-specific.
-    buffer.spp <- rbind(buffer.spp, 
-                        data.frame(cell.id=target.cells, 
-                                   PotSpp=potential.spp$PotSpp[ispp],
-                                   PressBuffer=as.logical(apply(list.cell.buff$nn.dists < potential.spp$rad.buff[ispp], 1, mean)) 
-                                   )
-                        )
+    aux <- apply(list.cell.buff$nn.dists < potential.spp$rad[ispp], 1, sum)>=potential.spp$nneigh[ispp]
+    buffer.spp <- rbind(buffer.spp, data.frame(cell.id=target.cells, PotSpp=potential.spp$spp[ispp], PressBuffer=aux))
   }
   
   return(buffer.spp)

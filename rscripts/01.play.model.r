@@ -56,12 +56,12 @@ play.landscape.dyn <- function(){
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r")
   source("mdl/landscape.dyn.r")  
-  scn.name <- "Test01"
+  scn.name <- "Test009"
   define.scenario(scn.name)
-  fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
-  write.sp.outputs <- T
-  dump(c("fuel.types.modif", "write.sp.outputs"), 
-       paste0("outputs/", scn.name, "/scn.custom.def.r"))
+  fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.1, 0.1)) #0.1, 0.4, 0.95
+  nrun <- 10
+  write.sp.outputs <- F
+  dump(c("nrun", "fuel.types.modif", "write.sp.outputs"), paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
   
 }
@@ -70,9 +70,11 @@ play.landscape.dyn <- function(){
 play.read.state.vars <- function(){
   rm(list=ls())
   # work.path <- "C:/Users/boumav/Desktop/QLandscapeDynamics1"
-  work.path <- "C:/work/qbcmod/QbcLDM"
+  work.path <- "C:/WORK/QBCMOD/"
   source("mdl/read.state.vars.r")
   read.state.vars(work.path)
+  source("mdl/build.pigni.r")
+  build.pigni(work.path, lambda=0.1)
 }
 
 
