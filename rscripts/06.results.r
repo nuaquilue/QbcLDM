@@ -1,8 +1,13 @@
-fires <- read.table("outputs/Test001/Fires.txt", header=T)
-fires$dif <- fires$atarget-fires$aburnt
+for(i in 1:9){
+  fires <- read.table(paste0("outputs/Test00",i,"/Fires.txt"), header=T)
+  fires$dif <- fires$atarget-fires$aburnt
+  uncomplet <- filter(fires, dif>0)
+  # nrow(uncomplet); sum(uncomplet$dif); 
+  print(round(sum(uncomplet$dif)/sum(fires$atarget)*100,1))
+  
+}
 
-uncomplet <- filter(fires, dif>0)
-nrow(uncomplet); sum(uncomplet$dif); round(sum(uncomplet$dif)/sum(fires$atarget)*100,1)
+
 
 extra <- filter(fires, dif<0)
 
