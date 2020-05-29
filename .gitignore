@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+*.docx
+outputs/
+rscripts/*.pdf
+inputlyrs/asc
+inputlyrs/dbf
+notes/
+mdl/old
+
