@@ -1,0 +1,208 @@
+---
+title: "Modeling fire rgime in Quebec Landscape Dynamic Model"
+author: "Núria Aquilué"
+date: "01/06/2020"
+output:  pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(rgdal)
+library(sp)
+library(raster)
+library(viridis)
+library(ggplot2)
+library(tidyverse)
+```
+
+# 1. Modeling fire regime
+
+The study area in Quebec province rougthly covers the productive forest areas of the province. The updated homogeneous fire regimes zones (HFR) are:    
+
+![Homogeneous fire regime zones in Quebec province](C:/WORK/QBCMOD/DataIn/ZonageFeux/HFRZqbc.png)  
+
+
+The fire return interval and maximum fire size per HFR are:
+
+```{r frz, echo=F}
+frz <- read.table("C:/WORK/QBCMOD/QbcLDM/inputfiles/FireRegime.txt", header=T)
+kable(frz[,1:3])
+```
+
+Following our discussions (mostly via e-mail), the most parsimonious approach to model fire regime in our framework is adopting a top-down approach, where both annual area burnt and target fire sizes are inputs of the model (that eventually can be modified). The emergent properties of the model will be (1) the number of fires, (2) the location of fires, (3) the effective fire size, and (4) the land-covers burnt. Note that in the previous versions the number of fires, instead of the annual area burnt was drawn from an input distribution.
+
+Thus, **at each time step:**  
+- the model randomizes the list of zones to be burnt first. Fires won't ignite in Agro-forestier and Agro-urbain zones, but can spread to  
+- it drawns an annual area to be burnt   
+- an ignition point is selected according to a spatiall-explicit static ignition probability  
+- fire spreads until target fire size is reached  
+- this operation is repeated auntil the total target annual area is burnt  
+
+
+## 1.1. Annual area burnt
+The options I propose to define the baseline annual area to be burnt are:
+
+**A.** Derive it from the fire return interval.  
+The table shows the baseline area (in km^2^) for a 5-year period. It has been calculated with the total area by zone.  
+```{r frz.area, echo=F, message=F, warning=F}
+options(warn=-1)
+frz <- read.table("C:/WORK/QBCMOD/QbcLDM/inputfiles/FireRegime.txt", header=T)
+load(file="C:/WORK/QBCMOD/QbcLDM/inputlyrs/rdata/land.rdata")
+area <- filter(land, FRZone != "Agro-forestier") %>% filter(FRZone !="Agro-urbain") %>%
+  group_by(FRZone) %>% summarise(area=length(FRZone)*4)
+frz.area <- left_join(frz, area, by=c("zone"="FRZone")) %>%
+  mutate(baseline=round(area*5/fri))
+kable(frz.area[,c(1,8)])
+```
+
+**B.** Use recent historical fire data.  
+If you know the location of the fire database you sent me (feux_1890_2018_taille_zones_a.xlsx), I could overlap the fires to the HFR to then compute a mean annual area burnt per zone.  
+
+
+**C.** Refer to literature.  
+We could use the data in Boulanger et al. 2014. They delineated homogeneous fire regime zones for Canada and computed the % of area annual burnt per HFR based on fire data from 1959 to 1999. I have overlapped their HFR with ours to compute the annual area burnt based on these percentages. The table shows the baseline area (in km^2^) for a 5-year period.
+
+```{r merged, echo=F, warning=F, message=F}
+merge <- readOGR("C:/WORK/QBCMOD/DataIn/ZonageFeux/MergeZones.shp")
+dta <- merge@data
+dta <- dplyr::select(dta, Group_1, NAMES_SHOR)
+names(dta) <- c("zone", "code")
+dta$area <- area(merge)
+## Table with % AAB observed
+obs.aab <- read.table("C:/WORK/QBCMOD/DataIn/ZonageFeux/Boulanger/ObservedAAB.txt", header=T)
+res <- filter(dta, !is.na(code)) %>% filter(zone != "Agro-forestier") %>% filter(zone != "Agro-urbain") %>%
+  left_join(obs.aab, by="code") %>% mutate(ab=area*PctgAAB/100, abkm2=ab/10^6) %>%
+  group_by(zone) %>% summarize(burnt.area=round(sum(abkm2)*5)) 
+kable(res)
+```
+
+*Boulanger Y., Gauthier S., Burton, P.J. 2014. A refinement of models projecting future Canadian fire regimes using homogeneous fire regime zones. Canadian Journal of Forest Research, 44, 365-276.*
+
+## 1.2. Target fire size
+Per each fire regime zone and time step, the target size of each fire is drawn from a discret distribution (that is, lower and upper limits in km^2^ are given, and a probability for each class). The fire size distribution of zones with maximum fire size 2000 km^2^ is:    
+```{r fsa, echo=F}
+fsize <- read.table("C:/WORK/QBCMOD/QbcLDM/inputfiles/FireSizes.txt", header = T)
+fs <- filter(fsize, frz=="A")
+kable(fs[,c(1,2,4)])
+```  
+
+The fire size distribution of zones with maximum fire size 500 km^2^ is:    
+```{r fsd, echo=F}
+fsize <- read.table("C:/WORK/QBCMOD/QbcLDM/inputfiles/FireSizes.txt", header = T)
+fs <- filter(fsize, frz=="D")
+kable(fs[,c(1,2,4)])
+```
+
+
+## 1.3. Probability of ignition
+Ignition locations of fires of size greater than 200 ha are available at [CNFDB](https://cwfis.cfs.nrcan.gc.ca/ha/nfdb). The cause of fires is reported (e.g. U - unknown, L - lightning, H - human, H.PB - prescribed burn, and Re - reburn). We decided to keep ignition probability static along the simulations. One option to use this information is to build a 5, 10, 20, 30 and 40 km buffers around igntions points and then assign a probability of ignition (using a negative exponential function) depending of the distance to the focal points. 
+
+![Buffers to define  ignition probability](C:/WORK/QBCMOD/DataIn/Buffers/Buffers.png)  
+
+\break
+
+The ignition probability as a function of distance to focal points, applying *exp(-0.1 · dist)* is:
+```{r pigni, echo=F}
+dist <- seq(0,40,1)
+lambda <- 0.1
+plot(dist, exp(-lambda*dist), type="l", lwd=2, col="red", xlab="km", ylab="p")
+abline(v=5, col="grey80"); abline(v=10, col="grey80"); abline(v=20, col="grey80")
+```
+
+# 2. Influence of climate change on fire regime
+
+In the previous version, MB applied a 10% increase on the number of fires following Wang et la. 2017. In the current version of the model, climate change should influence either the target area to be burnt, or fire sizes, or both.
+
+One option I have explored is to use the predicted percentages of annual area burnt by Boulanger et al. 2014. The predicted values are available for both scenarios RCP 4.5 and 8.5, at 30-year time periods (2011-2040, 2041-2070, and 2071-2100), and for 3 climatic modles (CanESM2, Hadley, MIROC). We can directly apply these percentages to any of the baselines we agreed to use. The percentages will be defined at the HFR level.  
+
+As an example, the following table shows the total area (km^2^), the predicted area to be burnt every 5 years in 4 30-year time periods (1961-1990, 2011-2040, 2041-2070, and 2071-2100), and the theoretical fire return interval per fire zone. These data used corresponds to the A2 scneario (Boulanger et al. 2014).
+
+```{r predictaab, echo=F, warning=F, message=F}
+dta <- merge@data
+dta <- dplyr::select(dta, Group_1, NAMES_SHOR)
+names(dta) <- c("zone", "code")
+dta$area <- area(merge)
+## Table with % AAB observed
+predict.aab <- read.table("C:/WORK/QBCMOD/DataIn/ZonageFeux/Boulanger/PredictedAAB.txt", header=T)
+res <- filter(dta, !is.na(code)) %>%  filter(zone != "Agro-forestier") %>% filter(zone != "Agro-urbain") %>%
+       left_join(predict.aab, by="code") %>% mutate(area=area/10^6) %>%
+       mutate(w90=X1990*area/100, w40=X2040*area/100, w70=X2070*area/100, w100=X2100*area/100) %>%
+       group_by(zone) %>% summarize(area=round(sum(area)), 
+        a1990=round(sum(w90)*5), a2040=round(sum(w40)*5),a2070=round(sum(w70)*5), a2100=round(sum(w100)*5),
+        fri1990=round(area*5/a1990), fri2040=round(area*5/a2040), fri2070=round(area*5/a2070), fri2100=round(area*5/a2100) )
+kable(res)
+```
+
+**To be discussed whether and how climate change influences target fire sizes.**
+
+*Wang, X., Parisien, M.-A., Taylor, S.W., Candau, J.-N., Stralberg, D., Marshall, G.A., Little, J.M., Flannigan, M.D., 2017. Projected changes in daily fire spread across Canada over the next century. Environ. Res. Lett. 12, 025005*
+
+
+
+# 3. Fire propagation
+
+How models simulates fire events is:  
+1. Determine target area (in km^2^) and convert to target size (in pixels).  
+2. Select a fire wind direction `fire.wind` (that will remain constant for the whole fire event) according to S - 10%, SW - 30%, W - 60.  
+3. Pick up an ignition location according to the ignition probability. This location starts the fire front. Track this location as both, burnt cell and visited cell.    
+4. While the number of burnt cells < target size, fire front will spread to the neighbours and burn some of these cells.  
+    * Find the 4 closest neighbours of all cells in the fire front. Keep only those belonging to the study area and have not been visited yet.  
+    * For these neighbouring cells compute `sr = wflam * fuel + wwind * (neigh.dir-fire.wind)` where `wflam` and `wwind` are weigthing factors summing up 1, `fuel` is the flammabiliyt of each fuel type group, and `neigh.dir` is the direction from source to sink locations.  Then, compute `pb=1+r*log(sr)` where `r` is a parameter controlling the range of burning probabilities (and also the formation of non-burnt islands within the fire perimeter).  
+    *  Randomly burnt cells according to `pb` but always burn those cells when `pb>=pb.upper.th` and never burn those cells when `pb<pb.lower.th`. Increase accordingly the number of burnt cells.  
+    * Record all burnt and unburnt neighbours as visit cells.  
+    * The fire front is formed now by the recently burnt cells. 
+    
+
+## 3.1. Fuels  
+
+Currently, species are aggreated in 3 fuel types and the default flammability of each group is:
+   
+Type      SppGrp                              Flammability
+--------  ----------------------------------  ----------------
+1         "BOJ",  "ERS", "NonFor", "other"    0.1
+2         "PET", ("EPN", "SAB", Age<=40)      0.4
+3         "EPN", "SAB" Age<=40                0.95 
+--------  ----------------------------------  ----------------
+where, "BOJ" is Yellow birch, "EPN" is Black spruce, "ERS" is Sugar maple, "PET" is Trembling aspen, "SAB" is Balsam fir, "oter" is the aggrupation of all other forest species, and "NonFor" is a burnable but non-forest land-cover type.  
+
+Following our e-mail conversations:  
+* It will be ideal if we could split the "Other" category in "Other conif" and "Other hardwoods".  
+* To JB: the species groups are on the previous table: BOJ, EPN, ERS, PET, SAB, NonFor, Others. And pixel size is 4 km^2^.   
+* We could try to match our species groups to fuel type classes, but then how we could use the *courbes de vitesse de propagation des combustibles* to derive the flammability parameter?
+
+
+## 3.2. Wind 
+
+The aim is to find out the prevalent wind directions in the study area. Following JB suggestion, consult the SOPFEU data base to derive the dominant wind direction of those days favorable to fire (IFM>x).  
+
+JB, I couldn't find these database on the net. Could you provide me some data?  
+
+
+## 3.3. Influence of fuel on total burnt area
+
+A fire event can evenutally stop spreading if spread rate, and consequently probability of burn of most fire front cells is too low. Fire spread is proportional to fuel load. If fuel load is low, spread rate will be low too.  
+I've checked that if the flammability of all fuel types is 0.95, 0.7% of the target area to be burnt (over the whole period) remains unburnt (10 runs, `r=0.3`). This 0.7% can be considered a mismatch of the model. If the flammability of one or more species groups decreases, and if the parameter r varies, the percentage of unburnt area mostly increases.    
+I've run 10 replicates of the model (2010 to 2095) with the following flammability parameters:  
+```{r flam, echo=F}
+flam <- read.table("C:/WORK/QBCMOD/QbcLDM/rmarkdown/TestFlam.txt", header = T)
+kable(flam)
+```
+
+The percentage of unburnt area is:  
+```{r result, echo=F}
+res <- read.table("C:/WORK/QBCMOD/QbcLDM/rmarkdown/ResultTest.txt", header = T)
+ kable(res)
+```
+
+I propose to use these behavior to model the influence of fuel on final burnt area, being the final burnt area an emergent property of the model. It will work as follows: When a fire stops before reaching the target size, the remaing unburnt area (of that fire) will be discounted from the total remaining area to be burnt (at the zone level). Thus, the target burnt area of the zone will decrease as a function of landscape composition.  
+
+# 4. Examples
+
+Spatial distribution of fire perimeters (in a single run, in a single time step) when `wflam=0.7`, `wwind=0.3`, `r=0.3`, and species group flammability as default (0.1, 0.4 and 0.95).  
+
+![Fires of year 2020](C:/WORK/QBCMOD/QbcLDM/outputs/Fires2020.png)  
+  
+![Fires of year 2095](C:/WORK/QBCMOD/QbcLDM/outputs/Fires2095.png)  
+ 
+

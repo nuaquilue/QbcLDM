@@ -1,3 +1,4 @@
+library(tidyverse)
 for(i in 1:9){
   fires <- read.table(paste0("outputs/Test00",i,"/Fires.txt"), header=T)
   fires$dif <- fires$atarget-fires$aburnt

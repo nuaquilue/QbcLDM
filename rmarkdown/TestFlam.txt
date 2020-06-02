@@ -1,0 +1,4 @@
+Type	SppGrp	Flam01	Flam02	Flam03	Flam04	Flam05	Flam06	Flam07	Flam08
+1	BOJ-ERS-NonFor-other	0.95	0.4	0.1	0.4	0.1	0.1	0.1	0.1
+2	PET-youngEPN-youngSAB	0.95	0.95	0.95	0.4	0.4	0.1	0.4	0.1
+3	matureEPN-matureSAB	0.95	0.95	0.95	0.95	0.95	0.95	0.4	0.1
