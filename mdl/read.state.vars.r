@@ -40,7 +40,7 @@ read.state.vars <- function(work.path){
   
   
   ## 2. Read the new fire regime zones, transform to the .dbf projections and overlap
-  ZONES <- readOGR(paste0(work.path, "DataIn/ZonageFeux/2020.05.25/zones_nuria.shp"))
+  ZONES <- readOGR(paste0(work.path, "DataIn/ZonageFeux/2020.06.02/zones_nuria.shp"))
   ZONESp <- spTransform(ZONES, CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
                     +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
   points <- SpatialPoints(forest.data[,2:3],  CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
@@ -115,7 +115,6 @@ read.state.vars <- function(work.path){
   
   
   ## Make sure that the age classes are presented in 5-year increments
-  
   land$Age <- round(land$Age/time.step)*time.step
   
   ## 6.4. Modify maturity

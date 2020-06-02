@@ -49,7 +49,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes,
   modif.fuels$x <- 1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
   
   ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
-  fr.zones <- sample(LETTERS[1:7], 7, replace=FALSE)   
+  fr.zones <- sample(LETTERS[1:8], 8, replace=FALSE)   
   
   ## Initialize empty vector to track burned cells 
   burnt.cells <- visit.cells <-  numeric(0)
@@ -61,7 +61,6 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes,
   
   
   ## Start burning until annual target area per fire zone is not reached
-  izone <- "C"
   for(izone in fr.zones){
     
     ## Determine annual area burnt per zone, but considering fire rate increase with time 

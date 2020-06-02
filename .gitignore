@@ -5,7 +5,7 @@
 *.Rproj
 *.docx
 outputs/
-rscripts/*.pdf
+rmarkdown/*.pdf
 inputlyrs/asc
 inputlyrs/dbf
 notes/
