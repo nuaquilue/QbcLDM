@@ -56,12 +56,16 @@ play.landscape.dyn <- function(){
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r")
   source("mdl/landscape.dyn.r")  
-  scn.name <- "Test02"
+  scn.name <- "Test01"
   define.scenario(scn.name)
   fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) #0.1, 0.4, 0.95
-  nrun <- 50
-  write.sp.outputs <- F
-  dump(c("nrun", "fuel.types.modif", "write.sp.outputs"), paste0("outputs/", scn.name, "/scn.custom.def.r"))
+  nrun <- 1
+  write.sp.outputs <- T
+  pb.upper.th <- 0.75 
+  pb.lower.th <- -1 
+  dump(c("nrun", "fuel.types.modif", "write.sp.outputs",
+         "pb.lower.th", "pb.upper.th"), 
+       paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
   
 }
