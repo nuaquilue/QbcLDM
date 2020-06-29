@@ -51,6 +51,7 @@ read.state.vars <- function(work.path){
   rm(aux)
   save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
   
+  
   ## 3. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
   ## Fix first cell size (in m)
   ## Note that the points.shp is +proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0 
@@ -118,8 +119,10 @@ read.state.vars <- function(work.path){
   land$Age <- round(land$Age/time.step)*time.step
   
   ## 6.4. Modify maturity
+  land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("ERS", "BOJ")] <- 105
+  land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("PET")] <- 65
   land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
-  land$AgeMatu[is.na(land$AgeMatu) & land$Temp > 1]  <- 60
+  land$AgeMatu[is.na(land$AgeMatu) & land$Temp > 1]  <- 65
   land$AgeMatu[is.na(land$AgeMatu)] <- 70
   land$AgeMatu[land$AgeMatu < 60] <- 60
   land$AgeMatu[land$AgeMatu > 100 ] <- 100    

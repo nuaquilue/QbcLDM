@@ -74,11 +74,11 @@ define.scenario <- function(scn.name){
   salvage.rate.FMU <- 1    # maximum proportion of salvaged burnt wood allowed in the timber supply in each FMU [0,1]
   # ecocrisis <- FALSE       # presence of economic crises during simulations
   # ecocrisis.freq <- 0.0    # proportion of years affected by an economic crisis (between 0 and 1)
-  hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years)
+  hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years, 5*22==110)
   ## Replanning options facing natural disturbances
-  a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution nof a buffer 
-                 #for attenuation of nat. disturbance impacts on timber supply fluctuations.
-  replanif <- 1  # recalculation of AAC level at each time step (1=yes, 0=no). If no, it is calculated only
+  a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution of a buffer 
+                 # for attenuation of natural disturbance impacts on timber supply fluctuations.
+  replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
                  # once, during the first period
   
   

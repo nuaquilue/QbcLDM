@@ -23,8 +23,8 @@ landscape.dyn <- function(scn.name){
     library(tidyverse)
   })
   source("mdl/wildfires.r")
-  source("mdl/disturbance.cc.r") 
   source("mdl/sbw.outbreak.r") 
+  source("mdl/clear.cut.r") 
   source("mdl/disturbance.pc.r")   
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
@@ -80,6 +80,11 @@ landscape.dyn <- function(scn.name){
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
+  track.ccut <- data.frame(run=NA, year=NA, UA=NA, tot.inc=NA, even.age=NA, sup.mat=NA, s.inc.burnt=NA,
+                           s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA,
+                           cc.area.unaff=NA, cc.area.salvaged=NA, harv.cc.EPN=NA, 
+                           harv.cc.BOJ=NA, harv.cc.PET=NA, harv.cc.SAB=NA, 
+                           harv.cc.ERS=NA, harv.cc.other=NA, reg.fail.ex=NA, reg.fail.inc=NA)
   
   
   ## Start the simulations
@@ -106,6 +111,7 @@ landscape.dyn <- function(scn.name){
                               group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
                               C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
                               C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
+    
     ## Record initial suitability classes per BCDomain 
     suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
     aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
@@ -113,14 +119,15 @@ landscape.dyn <- function(scn.name){
            med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
     track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
     rm(suitab); rm(aux)
+    
     ## Calculate the baseline fuel at the fire regime zone and track it
     baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
     track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=0, baseline.fuel))
 
-    # # pour le cas d'un calcul avec integration a priori du risque de feu, on cr?e une matrice 
-    # # qui contiendra le niveau de r?colte ? maintenir sur tout l'horizon
-    ## It Calculates sustained yield level at time t = 0 (see disturbance.cc.r)
-    ref.harv.level <- table(land$MgmtUnit)*0 
+    ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
+    ## It will be used when the option "replan" is not activated, 
+    ## so recalculation of AAC level is only calculated once, during the first period
+    ref.harv.level <- table(land$MgmtUnit)*NA
     
     
     ## Start 
@@ -174,12 +181,11 @@ landscape.dyn <- function(scn.name){
       ## 3. CLEAR CUTING
       cc.cells <- integer()
       if(processes[cc.id] & t %in% cc.schedule){
-        cc.cells <- disturbance.cc(subset(land, select=c(cell.indx, MgmtUnit, SppGrp, Exclus, TSD, TSE, 
-                                                         TSF,age.mat,TSPC,Temp), (SppGrp!="NonFor" & !is.na(MgmtUnit))), 
-                                   cc.step, target.old.pct, diff.prematurite, hor.plan,
-                                   a.priori, replanif, salvage.rate.event, salvage.rate.FMU, ref.harv.level, 
-                                   write.tbl.outputs, km2.pixel, irun, t, out.path, 
-                                   out.overwrite=(irun==1 & t==cc.schedule[1]))
+        cc.out <- clear.cut(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
+                            salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id)
+        cc.cells <- cc.out[[1]]
+        if(nrow(cc.out[[2]])>0)
+          track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[2]]))
         # Done with clear cuts
         land$TSDist[land$cell.id %in% cc.cells] <- 0
         land$DistType[land$cell.id %in% cc.cells] <- cc.id
@@ -195,32 +201,28 @@ landscape.dyn <- function(scn.name){
       # REVIEW land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       pc.cells <- integer()
       if(processes[pc.id] & t %in% pc.schedule){
-        pc.cells <- disturbance.pc(subset(land, select=c(cell.indx, MgmtUnit, SppGrp, Exclus, TSD, TSE, TSF,age.mat,TSPC), (SppGrp!="NonFor" & !is.na(MgmtUnit))), 
-                                   cc.step, hor.plan,
-                                   write.tbl.outputs, km2.pixel, irun, t, out.path, 
-                                   out.overwrite=(irun==1 & t==pc.schedule[1]))
+        pc.cells <- disturbance.pc(land, hor.plan, km2.pixel, time.step)
         # Done with partial cuts
         land$TSDist[land$cell.id %in% pc.cells] <- 0
         land$DistType[land$cell.id %in% pc.cells] <- pc.id
         pc.schedule <- pc.schedule[-1]  
       }  
 
-      # a priori - en d?veloppement
-      # Lorsque l'option 'a priori' est s?lectionn?e, le niveau de r?f?rence est calcul? durant
-      # la premi?re p?riode, en appliquant une p?nalit? (a.priori). Ce niveau de r?colte (ref.harv.level)
-      # en coupe totale est maintenu tel quel durant les p?riodes subs?quentes.
-      if (t==5) {
-        ref.harv.level  <- table(land$MgmtUnit[land$cell.id %in% cc.cells])
-        if(irun==1) {
+      ## If option replan is NOT activated, the reference level of harvesting is only computed once, 
+      ## during the first period (t=0). This harvesting level for the clear cuts is maintainted 
+      ## in all the following periods
+      if(t==0){
+        ref.harv.level <- table(land$MgmtUnit[land$cell.id %in% cc.cells])
+        if(irun==1){
           ref.harv.level.cp <- table(land$MgmtUnit[land$cell.id %in% pc.cells])
-          ref <- cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel
-          write.table(ref, file = paste0(out.path, "/InitialHarvestLevel.txt"),
-                          quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
+          write.table(cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel, 
+                      file = paste0(out.path, "/InitialHarvestLevel.txt"),
+                      quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
         }
       } 
       else{
         bid <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
-        ref.harv.level <- pmax(ref.harv.level,bid)
+        ref.harv.level <- pmax(ref.harv.level, bid)
       }      
       
       
@@ -272,12 +274,15 @@ landscape.dyn <- function(scn.name){
       ## Now, for each cell that has changed composition (because of natural succession or regeneration
       ## post-distrubance), re-initialize Tcomp
       land$Tcomp[land$SppGrp != initial.forest.comp] <- 0
+      land$Age[land$cell.id %in% burnt.cells] <- 0
+      land$Age[land$cell.id %in% kill.cells] <- 0
+      land$Age[land$cell.id %in% cc.cells] <- 0
       
       
-      ## Finally, Aging: I ncrement Time Since Disturbance and Time Last Forest Composition change by time.step 
+      ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
       land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
-      
+      land$Age <- land$Age + time.step
       
       
       ##################################### TRACKING AND SPATIAL OUTS #####################################

@@ -118,7 +118,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes,
       fire.size.target <- min(fire.size.target, target.size-track.burnt)
       fire.size.target
       
-      ## Assign the main wind direction according to the fire spread type
+      ## Assign the main wind direction 
       ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
       # S 10%, SW 30%, W 60%  
       fire.wind <- sample(c(180,225,270), 1, replace=T, p=c(10,30,60))
