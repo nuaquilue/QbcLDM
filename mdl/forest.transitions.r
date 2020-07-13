@@ -49,12 +49,15 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   ## Then join buffer results indicating whether the potential species is present in the surrounding neighborhood
   ## Finally join the climatic-soil suitability index (i.e. modifier) of the potential spp
   subland <- left_join(subland, prob.reg, by="SppGrp") %>%
-             left_join(buffer, by=c("cell.id","PotSpp")) %>%
-             left_join(suitab, by=c("cell.id","PotSpp")) 
+             left_join(buffer, by=c("cell.id", "PotSpp")) %>%
+             left_join(suitab, by=c("cell.id", "PotSpp")) 
   
   ## Reset suitability for 'other species' because the group includes many species and 
   ## it's assumed that the climate would be suitable for at least one of those species. 
-  subland$SuitClim[subland$PotSpp=="other"] <- 1
+  subland$SuitClim[subland$PotSpp=="OthCB"] <- 1
+  subland$SuitClim[subland$PotSpp=="OthDB"] <- 1
+  subland$SuitClim[subland$PotSpp=="OthCT"] <- 1
+  subland$SuitClim[subland$PotSpp=="OthDT"] <- 1
   subland$SuitClim[subland$PotSpp=="NonFor"] <- 1
   subland$SuitSoil[subland$PotSpp=="NonFor"] <- 1
   

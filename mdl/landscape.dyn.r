@@ -25,7 +25,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/wildfires.r")
   source("mdl/sbw.outbreak.r") 
   source("mdl/clear.cut.r") 
-  source("mdl/disturbance.pc.r")   
+  source("mdl/partial.cut.r")   
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
@@ -112,6 +112,7 @@ landscape.dyn <- function(scn.name){
                               C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
                               C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
     
+    
     ## Record initial suitability classes per BCDomain 
     suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
     aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
@@ -151,8 +152,8 @@ landscape.dyn <- function(scn.name){
       ## 1. FIRE
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
-        fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, 
-                              baseline.fuel, fuel.types.modif, km2.pixel, t)
+        fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, baseline.fuel, 
+                              fuel.types.modif, pigni.opt, km2.pixel, t)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
@@ -203,7 +204,7 @@ landscape.dyn <- function(scn.name){
       if(processes[pc.id] & t %in% pc.schedule){
         pc.cells <- disturbance.pc(land, hor.plan, km2.pixel, time.step)
         # Done with partial cuts
-        land$TSDist[land$cell.id %in% pc.cells] <- 0
+        land$TPCut[land$cell.id %in% pc.cells] <- 0
         land$DistType[land$cell.id %in% pc.cells] <- pc.id
         pc.schedule <- pc.schedule[-1]  
       }  
@@ -255,6 +256,7 @@ landscape.dyn <- function(scn.name){
       land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(filter(land, cell.id %in% cc.cells),
                   post.harvest.reg, buffer, suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
       
+      
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
       if(enable.succ){
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
@@ -280,9 +282,10 @@ landscape.dyn <- function(scn.name){
       
       
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
+      land$Age <- land$Age + time.step
       land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
-      land$Age <- land$Age + time.step
+      land$TPCut <- land$TPCut + time.step
       
       
       ##################################### TRACKING AND SPATIAL OUTS #####################################
@@ -319,16 +322,17 @@ landscape.dyn <- function(scn.name){
   
   
   cat("... writing outputs", "\n")
+  track.fire.regime[,8] <- round(track.fire.regime[,8], 2) 
+  write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
+  track.fires$rem <- track.fires$atarget-track.fires$aburnt
+  write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
+  track.fuels[,5:6] <- round(track.fuels[,5:6], 2)
+  write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.frzone[-1,], paste0(out.path, "/SppByFRZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
   track.land.fuel[,4] <- round(track.land.fuel[,4], 3)
   write.table(track.land.fuel[-1,], paste0(out.path, "/FuelLand.txt"), quote=F, row.names=F, sep="\t")
-  track.fire.regime[,8] <- round(track.fire.regime[,8], 2) 
-  write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")
-  write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
-  track.fuels[,5:6] <- round(track.fuels[,5:6], 2)
-  write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
   
   toc()
 } 

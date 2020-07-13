@@ -36,8 +36,8 @@ define.scenario <- function(scn.name){
   ## Partial cuts and spruce budworm are deactivated in the current version.
   processes <- c(TRUE,  # 1. Fire
                  FALSE, # 2. Spruce budworm
-                 FALSE,  # 4. Clear cut
-                 FALSE)  # 5. Partial cut
+                 TRUE,  # 4. Clear cut
+                 TRUE)  # 5. Partial cut
                  
   ## Processes' identificator and recurrence (in years) 
   fire.id <- 1; fire.step <- 5
@@ -53,9 +53,10 @@ define.scenario <- function(scn.name){
   ## FIRE parameters: distributions of fire regime per FRZone
   file.fire.regime <- "inputfiles/FireRegime.txt"
   file.fire.sizes <- "inputfiles/FireSizes.txt" 
-  fuel.types.modif <- data.frame(type=1:3, baseline=c(0.1, 0.4, 0.95)) 
-                     # Flammability (that modify the burnt probability) of the fuel types
-                     # If baseline=c(1,1,1) no effect of fuel.types on fire spreading/burning
+  fuel.types.modif <- read.table("inputfiles/FuelTypeModif.txt", header=T)
+  pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static" for a spatial but static 
+                      # probability of fire ignition, or "dyn" for a dynamic probability of ignition derived from
+                      # a empiric relation between ignitions and environmental / anthropic drivers.
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
@@ -88,9 +89,9 @@ define.scenario <- function(scn.name){
   age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
   suboptimal <- 0.5  # tolerance for sub optimal conditions
-  post.fire.reg <- read.table("inputfiles/PostFireReg.txt", header=T)
-  post.sbw.reg <- read.table("inputfiles/PostSBWReg.txt", header=T)
-  post.harvest.reg <- read.table("inputfiles/PostHarvestReg.txt", header=T)
+  post.fire.reg <- read.table("inputfiles/PostFireRege.txt", header=T)
+  post.sbw.reg <- read.table("inputfiles/PostSBWRege.txt", header=T)
+  post.harvest.reg <- read.table("inputfiles/PostCutRege.txt", header=T)
   forest.succ <- read.table("inputfiles/ForestSucc.txt", header=T)
   potential.spp <- read.table("inputfiles/PotentialSpp.txt", header=T)
       # rad.buff is the estimated maximum colonization distance (in m)

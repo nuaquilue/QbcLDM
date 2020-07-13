@@ -49,7 +49,7 @@ read.state.vars <- function(work.path){
   names(aux)[3] <- "FRZ"
   forest.data <- left_join(forest.data, aux,  by = c("X_COORD", "Y_COORD"))
   rm(aux)
-  save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
+    # save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
   
   
   ## 3. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
@@ -80,7 +80,7 @@ read.state.vars <- function(work.path){
                      Temp = dta$TEMPE,
                      Precip = dta$PRECI,
                      MgmtUnit = dta$UAF18,
-                     SppGrp = sub("BOP", "other", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO))),
+                     SppGrp = sub("BOP", "OthDT", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO))),
                      EcoType = substr(dta$TECO2,0,2),
                      Age = dta$TSD,
                      SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", dta$DEP3)))))),
@@ -89,17 +89,25 @@ read.state.vars <- function(work.path){
   
   
   ## 6. Do some cleaning and customizations at the initial data:
-  ## 6.1. Reclassify regenerating stands according to the composition of the neigbhour and
+  ## 6.1 Reclassify Other category in 4 categories: OthDT, OthDC, OthDB, OthCB according to EcoType
+  thesaurus <- data.frame(EcoType=c("FC", "FE", "FO", "LA", "LL", "MA", "ME", "MF", "MJ", "MS", "RB", "RC", "RE", "RP", "RS", "RT", "TO"),
+                         other=c("OthDT", "OthDT", "OthDT", "OthDT", "OthDT", "OthCB", "OthCB", "OthDT", "OthDB", "OthCB", "OthCT", "OthCB", "OthCB", "OthCT", "OthCB", "OthCT", "OthCB"))
+  land <- left_join(land, thesaurus, by="EcoType")
+  levels(land$SppGrp) <- c(levels(land$SppGrp), "OthDT",  "OthCT", "OthDB", "OthCB")
+  selection <- !is.na(land$SppGrp) & land$SppGrp=="other"
+  land$SppGrp[selection] <- land$other[selection]
+  land$SppGrp <- factor(land$SppGrp)      # remove the 'other' level (and the 'rege' level too)
+  
+  ## 6.2. Reclassify regenerating stands according to the composition of the neigbhour and
   ## the site's ecological type. 
   land$SppGrp[!is.na(land$SppGrp) & land$SppGrp=="rege"] <- 
-              neighour.spp(select(land, "cell.id", "SppGrp", "EcoType", "x", "y"), 
-              target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")],
+              neighour.spp(land, target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")],
               radius.neigh=10000, km2.pixel=(cell.size/1000)^2)
   
-  ## 6.2. Remove "EcoType" as it is not anymore needed 
-  land <- select(land, -EcoType)
+  ## 6.3. Remove "EcoType" and "other", as these are not anymore needed 
+  land <- select(land, -EcoType, -other)
   
-  ## 6.3. Clean Age to be suitable for the model
+  ## 6.4. Clean Age to be suitable for the model
   land$Age[land$Age==-99] <- -1
   ## Re-equilibrate the age class distribution of locations with age <= 20 years
   ## to compensate for a lack of precision in the initial values of regenerating stands 
@@ -113,12 +121,10 @@ read.state.vars <- function(work.path){
   ## Randomize ages 120 and 200
   selection <- !is.na(land$Age) & land$Age %in% c(120,200) & land$MgmtUnit %notin% c(2371, 2471, 2571) 
   land$Age[selection] <-  land$Age[selection] + sample(c(-10,0,10,20), sum(selection), replace=T)
-  
-  
   ## Make sure that the age classes are presented in 5-year increments
   land$Age <- round(land$Age/time.step)*time.step
   
-  ## 6.4. Modify maturity
+  ## 6.5. Modify maturity
   land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("ERS", "BOJ")] <- 105
   land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("PET")] <- 65
   land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
@@ -127,7 +133,7 @@ read.state.vars <- function(work.path){
   land$AgeMatu[land$AgeMatu < 60] <- 60
   land$AgeMatu[land$AgeMatu > 100 ] <- 100    
   
-  ## 6.5. Assign "T" to missing surficial deposits
+  ## 6.6. Assign "T" to missing surficial deposits
   land$SoilType[!is.na(land$SppGrp) & is.na(land$SoilType)] <- "T"
   
   
@@ -144,6 +150,10 @@ read.state.vars <- function(work.path){
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$Tcomp <- 50
   
+  ## 7.3. Create a variable that records the time since the last partical cut
+  ## To all locations be selectable at t=0, assign as time since the last partial cut, 
+  ## half the age of maturity
+  land$TPCut <- land$AgeMatu/2
   
   ## 8. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
   ## reset factor's levels, and only eep cells that are not NA

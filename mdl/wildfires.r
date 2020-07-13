@@ -21,29 +21,36 @@
 ######################################################################################
 
 
-wildfires <- function(land, file.fire.regime, file.fire.sizes, 
-                      baseline.fuel, fuel.types.modif, km2.pixel, t){
+wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
+                      fuel.types.modif, pigni.opt, km2.pixel, t){
   
   
   ## Function to select items not in a vector
   `%notin%` <- Negate(`%in%`)
   
-  ## Read and load input data
-  load("inputlyrs/rdata/pigni.rdata")
+  ## Read fire regime and fire size distribution per HFRZ
   fire.regime <- read.table(file.fire.regime, header = T)
   fire.sizes <- read.table(file.fire.sizes, header = T)
+  
+  ## Generate random probability of ignition or load static pigni
+  if(pigni.opt=="rand"){
+    pigni <- data.frame(cell.id=land$cell.id, frz=land$FRZone)
+    pigni$p <- runif(nrow(pigni),0,1)
+  }
+  if(pigni.opt=="static")
+    load("inputlyrs/rdata/pigni_static.rdata")
+
   
   ## Wind direction between neigbours
   ## Wind direction is coded as 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
   # default.neigh <- data.frame(x=c(-1,1,805,-805,804,-806,806,-804),
-  #                             windir=c(270,90,180,0,225,315,135,45),
-  #                             dist=1000*c(2,2,2,2,sqrt(8),sqrt(8),sqrt(8),sqrt(8)))
+  #                             windir=c(270,90,180,0,225,315,135,45))
   default.neigh <- data.frame(x=c(-1,1,805,-805), windir=c(270,90,180,0))
   default.nneigh <- nrow(default.neigh)
   
   ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
   ## Then assign baseline flammability to each type
-  fuels <- fuel.type(land, fuel.types.modif)
+  fuels <- fuel.type(land, fuel.types.modif, NA)
   current.fuels <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
   modif.fuels <- current.fuels
   modif.fuels$x <- 1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
@@ -122,6 +129,10 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes,
       ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
       # S 10%, SW 30%, W 60%  
       fire.wind <- sample(c(180,225,270), 1, replace=T, p=c(10,30,60))
+      
+      ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
+      ## Then assign baseline flammability to each type according to target fire size
+      fuels <- fuel.type(land, fuel.types.modif, fire.size.target)
       
       ## Select an ignition point according to probability of ignition and initialize tracking variables
       fire.front <- sample(pigni.zone$cell.id, 1, replace=F, pigni.zone$p)
@@ -211,19 +222,22 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes,
                   left_join(group_by(land, FRZone) %>% summarize(atot=length(FRZone)), by=c("zone"="FRZone")) %>%
                   mutate(fire.cycle=round(time.step*atot/aburnt)) %>%
                   left_join(current.fuels, by="zone") %>% mutate(indx.combust=x) %>% select(-atot, -x)
+  # fuels
+  fuels <- fuel.type(land, fuel.types.modif, NA)
   fuels.burnt <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif)
   nb <-  length(unique(fuel.types.modif$baseline))
   nzones <- length(levels(fuels$zone))
   track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=nzones, ncol=nb),
-                 table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=nzones, ncol=nb)) %>%
+                            table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=nzones, ncol=nb)) %>%
                 select(-Var1.1, -Var2.1)
   names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
+  track.fuels$pctg.burnt[is.na(track.fuels$pctg.burnt)] <- 0
   
   ## Return the index of burnt cells and the tracking data.frames
   ## For some reason I still don't know, a few (little) times, there are duplicates in burnt.cells, 
   ## what causes errors in buffer.mig (for example). 
   ## I will need to find the mistake and solve it, but by now I simply retrun unique(burnt.cells).
   ## However, in such cases length(burnt.cells)*km2.pixel < aburnt at the zone level
-  return(list(burnt.cells=unique(burnt.cells), track.regime=track.regime, track.fire=track.fire, track.fuels=track.fuels))  
+  return(list(burnt.cells=unique(burnt.cells), track.regime=track.regime, track.fsire=track.fire, track.fuels=track.fuels))  
   
 }
