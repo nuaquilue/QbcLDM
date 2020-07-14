@@ -25,9 +25,9 @@
 
           # subland  <- filter(land, cell.id %in% burnt.cells)
           # prob.reg <- post.fire.reg
-#
-         # subland  <- filter(land, cell.id %in% unlist(chg.comp.cells))
-         # prob.reg <- forest.succ
+# #
+#          subland  <- filter(land, cell.id %in% cc.cells)
+#          prob.reg <- post.harvest.reg
 
 forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){
@@ -39,7 +39,8 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   ## Tracking
   cat(ifelse(dtype=="B", "Forest transition post-fire", 
         ifelse(dtype=="O", "Forest transition post-outbreak", 
-          ifelse(dtype=="C", "Forest transition post-cut", "Natural succession"))), "\n")
+          ifelse(dtype=="C", "Forest transition post-cut", 
+            ifelse(dtype=="S", "Natural succession", "xxx")))), "\n")
   
   ## Keep the current species in case any potential species can colonize the site.
   ## In that case, the current species, persist.
@@ -66,13 +67,13 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   if(dtype=="C" & enfeuil>0){  
     vec.enfeuil <- filter(subland, SppGrp %in% c("EPN","SAB") & PotSpp=="PET") %>% select(ptrans)
     vec.enfeuil <- vec.enfeuil + (runif(length(vec.enfeuil))<enfeuil)*1000
-    subland$ptrans[subland$SppGrp %in% c("EPN","SAB") & subland$PotSpp=="PET"] <- vec.enfeuil
+    subland$ptrans[subland$SppGrp %in% c("EPN","SAB") & subland$PotSpp=="PET"] <- unlist(vec.enfeuil)
   }
   
   ## Reburning case: If burnt stands are too young, probability of successful natural regeneration is lower
   if(dtype=="B"){ 
-    subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN"& subland$Age<age.seed] <- 
-      subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN"& subland$Age<age.seed] * (1-p.failure)
+    subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN" & subland$Age<age.seed] <- 
+      subland$ptrans[subland$SppGrp=="EPN" & subland$PotSpp=="EPN" & subland$Age<age.seed] * (1-p.failure)
   }
   
   ## Stability criteria: if the species is present in the target location, then

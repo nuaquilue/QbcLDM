@@ -80,11 +80,10 @@ landscape.dyn <- function(scn.name){
                              aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
-  track.ccut <- data.frame(run=NA, year=NA, UA=NA, tot.inc=NA, even.age=NA, sup.mat=NA, s.inc.burnt=NA,
-                           s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA,
-                           cc.area.unaff=NA, cc.area.salvaged=NA, harv.cc.EPN=NA, 
-                           harv.cc.BOJ=NA, harv.cc.PET=NA, harv.cc.SAB=NA, 
-                           harv.cc.ERS=NA, harv.cc.other=NA, reg.fail.ex=NA, reg.fail.inc=NA)
+  track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, s.mat=NA, s.inc.burnt=NA, 
+                           s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA, reg.fail.ex=NA, reg.fail.in=NA,
+                           area.salvaged=NA, area.unaff=NA, PET=NA, SAB=NA, OthCB=NA, ERS=NA, EPN=NA, OthDT=NA,
+                           OthCT=NA, BOJ=NA, OthDB=NA)
   
   
   ## Start the simulations
@@ -146,6 +145,8 @@ landscape.dyn <- function(scn.name){
         land$Temp <- unlist(cc.temp[3+which(time.seq==t)], use.names=FALSE)
         land$Precip <- unlist(cc.precip[3+which(time.seq==t)], use.names=FALSE)
       }
+         ##########  Error in `$<-.data.frame`(`*tmp*`, Temp, value = c(-2.04, -2.09, -2.24,  : 
+      # replacement has 125677 rows, data has 125665
       
       
       ##################################### PROCESSES OF CHANGE #####################################
@@ -183,7 +184,7 @@ landscape.dyn <- function(scn.name){
       cc.cells <- integer()
       if(processes[cc.id] & t %in% cc.schedule){
         cc.out <- clear.cut(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                            salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id)
+                            salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id, t)
         cc.cells <- cc.out[[1]]
         if(nrow(cc.out[[2]])>0)
           track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[2]]))
@@ -202,29 +203,20 @@ landscape.dyn <- function(scn.name){
       # REVIEW land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       pc.cells <- integer()
       if(processes[pc.id] & t %in% pc.schedule){
-        pc.cells <- disturbance.pc(land, hor.plan, km2.pixel, time.step)
+        pc.cells <- partial.cut(land, hor.plan, km2.pixel, pc.step)
         # Done with partial cuts
         land$TPCut[land$cell.id %in% pc.cells] <- 0
         land$DistType[land$cell.id %in% pc.cells] <- pc.id
         pc.schedule <- pc.schedule[-1]  
       }  
 
-      ## If option replan is NOT activated, the reference level of harvesting is only computed once, 
-      ## during the first period (t=0). This harvesting level for the clear cuts is maintainted 
-      ## in all the following periods
-      if(t==0){
+      
+      ## Sustainable yield is computed in clear.cut(). Now simply save the reference harvesting level,
+      ## (i.e. what actually has been cut) to be used in the next steps.
+      if(t==0)
         ref.harv.level <- table(land$MgmtUnit[land$cell.id %in% cc.cells])
-        if(irun==1){
-          ref.harv.level.cp <- table(land$MgmtUnit[land$cell.id %in% pc.cells])
-          write.table(cbind(ref.harv.level,ref.harv.level.cp)*km2.pixel, 
-                      file = paste0(out.path, "/InitialHarvestLevel.txt"),
-                      quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
-        }
-      } 
-      else{
-        bid <- table(land$MgmtUnit[land$cell.indx %in% cc.cells])
-        ref.harv.level <- pmax(ref.harv.level, bid)
-      }      
+      else
+        ref.harv.level <- pmax(ref.harv.level, table(land$MgmtUnit[land$cell.indx %in% cc.cells]))
       
       
 
@@ -303,6 +295,13 @@ landscape.dyn <- function(scn.name){
       aux <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
       track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=t+year.ini, aux))
       rm(suitab); rm(aux)
+      
+      if(irun==1){
+        ref.harv.level.cp <- table(land$MgmtUnit[land$cell.id %in% pc.cells])
+        write.table(cbind(ref.harv.level, ref.harv.level.cp)*km2.pixel, 
+                    file = paste0(out.path, "/InitialHarvestLevel.txt"),
+                    quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
+      }
       
       ## If required, plot maps of DisturbanceType at each time step 
       if(write.sp.outputs){

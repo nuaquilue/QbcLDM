@@ -153,7 +153,7 @@ read.state.vars <- function(work.path){
   ## 7.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, 
   ## half the age of maturity
-  land$TPCut <- land$AgeMatu/2
+  land$TSPCut <- land$AgeMatu/2
   
   ## 8. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
   ## reset factor's levels, and only eep cells that are not NA

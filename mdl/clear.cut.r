@@ -32,176 +32,185 @@
 ######################################################################################
 
 clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id){  
+                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t){  
 
+  cat("Clearcutting", "\n" )
+             
   ## Initialize empty vector for the clear cut cells 
-  cc.cells <- numeric(0)
+  cc.cells.salv <- cc.cells.unaff <- numeric(0)
+
   
-  ## Name of the management units (76)
-  units <- sort(unique(land$MgmtUnit[!is.na(land$MgmtUnit)]))
+  ###################################### SUTAINABLE YIELD ######################################
+  ## Count the number of locations that can be harvested (included) from those that cannot (excluded)
+  ## due to environmental or  social constraints. These by default excluded areas are identified directly 
+  ## on the map based on local knowledge.
+  ## We need to consider excluded cells in some calculations because they contribute to
+  ## biodiversity objectives (even if they cannot be harvested).
+  ## Differentiate also between young and mature stands.
+  s.inc <- filter(land, !is.na(MgmtUnit) & is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.ex <-  filter(land, !is.na(MgmtUnit) & !is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc.mat <- filter(land, !is.na(MgmtUnit) & is.na(Exclus) & Age>AgeMatu) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.ex.mat <- filter(land, !is.na(MgmtUnit) & !is.na(Exclus) & Age>AgeMatu) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   
-  ## Tracking harvesting per management unit
-  track.cut <- data.frame(UA=NA, tot.inc=NA, even.age=NA, sup.mat=NA, s.inc.burnt=NA,
-                          s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA,
-                          cc.area.unaff=NA, cc.area.salvaged=NA, harv.cc.EPN=NA, 
-                          harv.cc.BOJ=NA, harv.cc.PET=NA, harv.cc.SAB=NA, 
-                          harv.cc.ERS=NA, harv.cc.other=NA, reg.fail.ex=NA, reg.fail.inc=NA)
-    
-  ## Harvest rates have to be calculated separately for each management unit:
-  for(unit in units){  
-    
-    ## Count the number of locations that can be harvested (included) from those that cannot (excluded)
-    ## due to environmental or  social constraints. These by default excluded areas are identified directly 
-    ## on the map based on local knowledge.
-    ## We need to consider excluded cells in some calculations because they contribute to
-    ## biodiversity objectives (even if they cannot be harvested).
-    ## Differentiate also between young and mature stands.
-    s.inc <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & is.na(land$Exclus))
-    s.ex <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & !is.na(land$Exclus))
-    s.inc.mat <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & land$Age >= land$AgeMatu & is.na(land$Exclus))
-    s.ex.mat <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & land$Age >= land$AgeMatu & !is.na(land$Exclus)) 
-    
-    ## For those locations that can be harvested (included), differentiate those that have been burnt or killed
-    ## by an outbreak, and then count the young (cannot be salvaged) vs the mature (can be salvaged)
-    s.inc.burnt <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & is.na(land$Exclus) & land$TSDist == 0 & land$DistType == fire.id)
-    s.inc.mat.burnt <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & is.na(land$Exclus) & land$TSDist == 0 & land$DistType == fire.id & land$Age>=land$AgeMatu)
-    s.inc.kill <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & is.na(land$Exclus) & land$TSDist %in% c(0,5) & land$DistType == sbw.id)
-    s.inc.mat.kill <- sum(!is.na(land$MgmtUnit) & land$MgmtUnit == unit & is.na(land$Exclus) & land$TSDist %in% c(0,5) & land$DistType == sbw.id & land$Age>=land$AgeMatu)
-    
-    ## Extract the portion that is managed through even-aged silviculture (clearcutting) based on species dominance. 
-    ## Some species are mostly managed through even aged silviculture (EPN, SAB, PET, others), 
-    ## the rest (BOJ, ERS) through unevenaged silviculture.
-    land.evenage <- filter(land, MgmtUnit == unit & SppGrp %in% c("EPN", "PET", "SAB", "other") & is.na(Exclus))
-    land.evenage <- land.evenage[runif(nrow(land.evenage))<0.95,]
-    land.unevenage <- filter(land, MgmtUnit == unit & SppGrp %in% c("BOJ", "ERS") & is.na(Exclus))
-    land.unevenage <- land.unevenage[runif(nrow(land.unevenage))<0.05,]
-    land.ea <- rbind(land.evenage, land.unevenage)
-    
-    ## Get the area managed under an even-aged regime
-    s.ea <- nrow(land.ea)    
-    
-    ## Area in mature (old) forests that should be maintained in the FMUs in order to meet the conservation target
-    target.old.ha  <- target.old.pct * (s.inc + s.ex)
-    target.old.ha.ea <- max(0, target.old.ha - s.ex.mat)
-    target.old.pct.ea <- target.old.ha.ea/s.ea        
-    
-    ## Subset of harvestable (mature even-aged) cells
-    land.rec <- filter(land.ea, Age >= AgeMatu)
-    s.mat <- nrow(land.rec)
-    
-    
-    #################################### Determine the sustained yield level ####################################
-    
-    # Number of strata corresponding to the number of different ages of maturity present in each FMU. 
-    # Only one stratum is used in the current version
-    strates <- sort((unique(land.ea$AgeMatu)))
+  ## For those locations that can be harvested (included), differentiate those that have been burnt or killed
+  ## by an outbreak, and then count the young (cannot be salvaged) vs the mature (can be salvaged)
+  s.inc.burnt <- filter(land, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id) %>% 
+    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc.mat.burnt <- filter(land, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id & Age>AgeMatu) %>% 
+    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc.kill <- filter(land, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id) %>% 
+    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc.mat.kill <- filter(land, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id & Age>AgeMatu) %>% 
+    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  
+  ## Also, look for zones at defforestation risk, both included and excluded
+  reg.fail.ex <- filter(land, !is.na(MgmtUnit)  & SppGrp %in% c("EPN", "SAB", "OthCB"), 
+                        TSDist==0, DistType==fire.id, Age<=50, !is.na(Exclus)) %>%
+                 group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  reg.fail.inc <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
+                         TSDist==0, DistType==fire.id, Age<=50, is.na(Exclus)) %>%
+                  group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  
+  ## Select locations that are managed through even-aged silviculture (clearcutting) based on species dominance. 
+  ## Some species are mostly managed through even aged silviculture (EPN, SAB, PET, OthCB, OthCT), while the rest
+  ## are managed through unevenaged silviculture (BOJ, ERS, OthDB, OthDT).
+  land <- mutate(land, rndm=runif(nrow(land)))
+  land.evenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT")
+                         & is.na(Exclus) & rndm<=0.95) 
+  land.unevenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("BOJ", "ERS", "OthDB", "OthDT") 
+                           & is.na(Exclus) & rndm<=0.05) 
+  land.ea <- rbind(land.evenage, land.unevenage)
+  
+  ## Subset the mature even-aged cells from those that are harvestable
+  land.rec <- filter(land.ea, Age>=AgeMatu)
+  
+  ## Get the area managed under an even-aged regime, and the area harevstable
+  s.ea <- group_by(land.ea, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
+  s.mat <- group_by(land.rec, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
+  
+  ## Area in mature (old) forests that should be maintained in the FMUs in order to meet the conservation target
+  target.old.ha  <- s.inc %>% mutate(x=target.old.pct * (s.inc$x + s.ex$x))
+  target.old.ha.ea <- target.old.ha %>% mutate(x=pmax(0, target.old.ha$x - s.ex.mat$x))
+  
+  # Number of strata corresponding to the number of different ages of maturity present in each FMU. 
+  # Only one stratum is used in the current version
+  strates <- group_by(land.ea, MgmtUnit, AgeMatu) %>% summarize(x=length(unique(AgeMatu)))
+  
+  ## Compute sustainable yield per FMU
+  recoltable.s <- cbind(s.ea %>% select(-x), matrix(NA, nrow=nrow(s.ea), ncol=hor.plan))
+  for(unit in unique(land.ea$MgmtUnit)){
+    strate.fmu <- filter(strates, MgmtUnit==unit)
     
     ## Calculation of the expected abundance of harvestable stands during future planning periods, 
     ## as the stands that are currently young will age and become harvestable
-    recoltable <- matrix(0,length(strates), hor.plan)
-    recoltable2 <- matrix(0,length(strates), hor.plan)
-    for (j in 1:length(strates)) { # j=1
-      age.mat.stra <- strates[j]
-      TSD_strate <- land.ea$TSD[land.ea$AgeMatu==strates[j]]
+    recoltable <- recoltable2 <- matrix(0, nrow(strate.fmu), hor.plan)
+    for(j in 1:nrow(strate.fmu)){ 
+      age.mat.stra <- strate.fmu$AgeMatu[j]
+      TSDstrate <- land.ea$TSDist[land.ea$MgmtUnit==unit & land.ea$AgeMatu==age.mat.stra]
       # maximum theoretical harvestable area per period for each stratum
-      recoltable2[j,] <- length(TSD_strate)/(age.mat.stra/5) * (1:hor.plan)   
+      recoltable2[j,] <- length(TSDstrate)/(age.mat.stra/cc.step) * (1:hor.plan)   
       # Determine the period when maturity will be reached for the different age classes
-      for (per in 0:(hor.plan-1))  # per=0  
-        recoltable[j,per+1] <- sum(TSD_strate >= (age.mat.stra-(per*5)))
-      for (per in (age.mat.stra/5): hor.plan)
+      for(per in 0:(hor.plan-1))  
+        recoltable[j,per+1] <- sum(TSDstrate >= (age.mat.stra-(per*cc.step)))
+      for(per in (age.mat.stra/cc.step):hor.plan)
         recoltable[j,per] <- recoltable2[j,per]
     }
     
     ## Total harvestable area, all strata combined, minus what has to be kept to satisfy the old forest target
-    recoltable.s <- colSums(recoltable)
-    recoltable.s1 <- pmax(0,recoltable.s-target.old.ha.ea)
-    recoltable.s2 <- recoltable.s1/(1:hor.plan)
+    recoltable.s[which(unit==unique(land.ea$MgmtUnit)),2:(hor.plan+1)] <-  
+      pmax(0, colSums(recoltable)-target.old.ha.ea$x[target.old.ha.ea$MgmtUnit==unit])/(1:hor.plan) 
     
-    ## Define sustainable harvest level at time t=0 (initial conditions). Corresponds to 
-    ## the period with the lowest mature forest availability. This harvest level is used in 
-    ## scenarios where the replanning option is not activated.
-    if(t==0) 
-        ref.harv.level[which(units %in% unit)] <- min(recoltable.s2) * a.priori
-    
-    ## If the replanning option is not activated, harvest level is the same for all periods. If there is
-    ## replanning, the adjusted harvest level (recalculated at each period for each FMU) is used.
-    if(replan)
-      recoltable.s3 <- recoltable.s2 * a.priori
-    else 
-      recoltable.s3 <- ref.harv.level[which(units %in% unit)] 
-    
-    # Number of cells to harvest (sustained yield level) 
-    n.cc.cells <-  max(0, round(min(recoltable.s3)*1))
-    n.cc.cells <- min(recoltable.s1[1], n.cc.cells)
-    
-    
-    ############################## Select cells to be harvested ##############################
-    ## Now that the harvest level has been determined for the current period, 
-    ## select the cells to be harvested
-    ## STRATA ARE NOT TAKEN INTO ACCOUNT during this selection    
-    ## First, Identify mature forests that have been affected by fire or severe SBW outbreaks during the current period, 
-    ## and the proportion that is truly harvestable - they will be harvested in priority (salvage logging)
-    ## burned cells must be salvaged immediately, but there are two periods to salvage SBW cells
-    land.salv.mature <- filter(land.ea, Age>=AgeMatu-diff.prematurite &
-                              ((TSDist==0 & DistType==fire.id) | (TSDist%in%c(0,5) & DistType==sbw.id)))
-    cell.salv.available <- sample(land.salv.mature$cell.id, 
-                                  round(salvage.rate.event*nrow(land.salv.mature)), replace=FALSE)
+  } #unit
+  
+  
+  ## Compute the sustainable harvesting level per management unit at time t=0 (initial conditions). 
+  ## Corresponds to the period with the lowest mature forest availability. 
+  ## If the replanning option is not activated, harvest level is the same for all periods. If there is
+  ## replanning, the adjusted harvest level (recalculated at each period for each FMU) is used.
+  if(replan | t==0)
+    harv.level <- data.frame(MgmtUnit=recoltable.s$MgmtUnit,
+                             x=apply(recoltable.s[,2:(hor.plan+1)], 1, min) * a.priori)
+  
+  ## Finally, compute the number of cells to be harvest (sustained yield level) 
+  n.cc.cells <- harv.level %>% mutate(x=pmin(unlist(recoltable.s[2]), pmax(0, round(harv.level$x))))
+  
+  
+  ############################## SELECT CELLS TO BE HARVESTED ##############################
+  ## Now that the harvest level has been determined for the current period, select the cells to be harvested
+  ## STRATA ARE NOT TAKEN INTO ACCOUNT during this selection    
+  
+  ## First, Identify mature forests that have been affected by fire or severe SBW outbreaks during the current period, 
+  ## and the proportion that is truly harvestable - they will be harvested in priority (salvage logging).
+  ## gurned cells must be salvaged immediately, but there are two periods to salvage SBW cells
+  land.salv.mature <- filter(land.ea, Age>=AgeMatu-diff.prematurite &
+                            ((TSDist==0 & DistType==fire.id) | (TSDist%in%c(0,5) & DistType==sbw.id)))
+  
+  ## For each management unit, randomly select cells among the even-aged mature cells present in non-protected areas
+  ## Prioritize clear cuts in disturbed areas (burnt or killed by outbreak).
+  for(unit in unique(land.ea$MgmtUnit)){
     
     ## Initialize vectors of cells
-    cc.cells.salv <- numeric()
-    cc.cells.unaff <- numeric()
+    cells.salv <- numeric()
+    cells.unaff <- numeric()
     
-    ## Randomly select cells among the even-aged mature cells present in non-protected areas
-    ## Prioritize clear cuts in disturbed areas
-    if(s.ea!=0){
+    ## If the area for even-aged harvesting is > 0 and the number of cells that can be sustainably harvested...
+    if(s.ea$x[s.ea$MgmtUnit==unit]!=0 & n.cc.cells$x[n.cc.cells$MgmtUnit==unit]>0){
+      
+      ## Find available cells for salvage logging
+      land.salv.mature.fmu <- filter(land.salv.mature, MgmtUnit==unit)
+      cell.salv.available <- numeric()
+      if(nrow(land.salv.mature.fmu)==1)
+        cell.salv.available <- land.salv.mature.fmu$cell.id
+      else(nrow(land.salv.mature.fmu)>1)
+        cell.salv.available <- sample(land.salv.mature.fmu$cell.id, 
+                                      round(salvage.rate.event*nrow(land.salv.mature.fmu)), replace=FALSE)
+      
       ## When the number harvestable disturbed cells >= sustained yield level, select as many as you can
-      if(length(cell.salv.available) >= round(n.cc.cells*salvage.rate.FMU)) 
-        cc.cells.salv <- sample(cell.salv.available, size=(round(n.cc.cells*salvage.rate.FMU)), replace=FALSE)                             
       ## But when the number harvestable disturbed cells  < sustained yield level, select them all
+      if(length(cell.salv.available) > round(n.cc.cells$x[n.cc.cells$MgmtUnit==unit]*salvage.rate.FMU)) 
+        cells.salv <- sample(cell.salv.available, size=(round(n.cc.cells$x[n.cc.cells$MgmtUnit==unit]*salvage.rate.FMU)), replace=FALSE)                             
       else 
-        cc.cells.salv <- cell.salv.available
+        cells.salv <- cell.salv.available 
       
       ## When salvaged cells were not enough to satisfy sustained yield level, then harvest some mature 
       ## forests unaffected by disturbances (cc.cells.unaff).
-      if (length(cc.cells.salv) < n.cc.cells) {
+      if(length(cc.cells.salv) < n.cc.cells$x[n.cc.cells$MgmtUnit==unit]){
         land.non.pertu <- filter(land.rec, TSDist!=0)
-        size.n <- min((n.cc.cells-length(cc.cells.salv)), nrow(land.non.pertu)) # number of harvesting cells
-        cc.cells.unaff <- sample(land.non.pertu$cell.id, size=size.n, replace=FALSE)
+        size.n <- min((n.cc.cells$x[n.cc.cells$MgmtUnit==unit]-length(cc.cells.salv)), nrow(land.non.pertu)) 
+        cells.unaff <- sample(land.non.pertu$cell.id, size=size.n, replace=FALSE)
       } 
+      
+      ## Finally, combine all types of harvested cells with those already harvested in other FMUs 
+      ## during the same time period
+      cc.cells.salv <- c(cc.cells.salv, cells.salv)
+      cc.cells.unaff <- c(cc.cells.unaff, cells.unaff)
     }
+  }
     
-    ## Finally, combine all types of harvested cells with those already harvested in other FMUs 
-    ## during the same time period
-    cc.cells <- c(cc.cells, cc.cells.salv, cc.cells.unaff)
-    
-    
-    ## TRACKING
-    ## Species cut in the current management unit
-    vec.cc.compo <- filter(land, MgmtUnit==unit, land$cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
-                   select(SppGrp)
-    ## Zones at defforestation risk in the UA, both included and excluded
-    reg.fail.ex <- filter(land, !is.na(MgmtUnit), MgmtUnit==unit, SppGrp %in% c("EPN","SAB"), 
-                          TSDist==0, DistType==fire.id, Age<=50, !is.na(Exclus) )
-    reg.fail.inc <- filter(land, !is.na(MgmtUnit), MgmtUnit==unit, SppGrp %in% c("EPN","SAB"), 
-                          TSDist==0, DistType==fire.id, Age<=50, is.na(Exclus) )
-    ## Add all the info about the current UA
-    track.cut <- rbind(track.cut, 
-                       data.frame(UA=unit, tot.inc=s.inc*km2.pixel, even.age=s.ea*km2.pixel, sup.mat=s.mat*km2.pixel, 
-                                  s.inc.burnt=s.inc.burnt*km2.pixel, s.inc.mat.burnt=s.inc.mat.burnt*km2.pixel, 
-                                  s.inc.kill=s.inc.kill*km2.pixel, s.inc.mat.kill=s.inc.mat.kill*km2.pixel,
-                                  cc.area.unaff=length(cc.cells.unaff)*km2.pixel, 
-                                  cc.area.salvaged=length(cc.cells.salv)*km2.pixel, 
-                                  harv.cc.EPN=sum(vec.cc.compo=="EPN")*km2.pixel, 
-                                  harv.cc.BOJ=sum(vec.cc.compo=="BOJ")*km2.pixel, 
-                                  harv.cc.PET=sum(vec.cc.compo=="PET")*km2.pixel, 
-                                  harv.cc.SAB=sum(vec.cc.compo=="SAB")*km2.pixel, 
-                                  harv.cc.ERS=sum(vec.cc.compo=="ERS")*km2.pixel, 
-                                  harv.cc.other=sum(vec.cc.compo=="other")*km2.pixel, 
-                                  reg.fail.ex=nrow(reg.fail.ex)*km2.pixel, 
-                                  reg.fail.inc=nrow(reg.fail.ex)*km2.pixel) )
-  } # mgmt unit
   
-  # Return the cell.id of the cut locations and the tracking info
-  return(list(cc.cells=cc.cells, track.cut=track.cut[-1,]))  
+  ################################################# TRACKING #################################################
+  ## Area salvaged logged and area harvested
+  s.salv <- filter(land, land$cell.id %in% cc.cells.salv) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
+  s.unaff <- filter(land, land$cell.id %in% cc.cells.unaff) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
+  
+  ## Species cut by management unit
+  cut.spp <- filter(land, land$cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
+             group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) %>%
+             pivot_wider(names_from=SppGrp, values_from=x)
+
+  ## Merge all the info 
+  track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat, by="MgmtUnit") %>% 
+           left_join(s.inc.burnt, by="MgmtUnit") %>% left_join(s.inc.mat.burnt, by="MgmtUnit") %>%
+           left_join(s.inc.kill, by="MgmtUnit") %>% left_join(s.inc.mat.kill, by="MgmtUnit") %>%
+           left_join(reg.fail.ex, by="MgmtUnit") %>% left_join(reg.fail.inc, by="MgmtUnit") %>%
+           left_join(s.salv, by="MgmtUnit") %>% left_join(s.unaff, by="MgmtUnit")
+  names(track)[2:ncol(track)] <- c( "tot.inc", "even.age", "s.mat", "s.inc.burnt", "s.inc.mat.burnt",
+     "s.inc.kill", "s.inc.mat.kill", "reg.fail.ex", "reg.fail.in", "area.salvaged", "area.unaff")
+  track <- left_join(track, cut.spp, by="MgmtUnit")
+  track[,2:ncol(track)] <- track[,2:ncol(track)]*km2.pixel
+  track[is.na(track)] <- 0
+  
+  ## Return the cell.id of the cut locations and the tracking info
+  return(list(cc.cells=unique(c(cc.cells.salv, cc.cells.unaff)), track.cut=track))  
   
 }
