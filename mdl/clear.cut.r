@@ -190,11 +190,11 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
   
   ################################################# TRACKING #################################################
   ## Area salvaged logged and area harvested
-  s.salv <- filter(land, land$cell.id %in% cc.cells.salv) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
-  s.unaff <- filter(land, land$cell.id %in% cc.cells.unaff) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
+  s.salv <- filter(land, cell.id %in% cc.cells.salv) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
+  s.unaff <- filter(land, cell.id %in% cc.cells.unaff) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
   
   ## Species cut by management unit
-  cut.spp <- filter(land, land$cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
+  cut.spp <- filter(land, cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
              group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) %>%
              pivot_wider(names_from=SppGrp, values_from=x)
 
@@ -204,7 +204,7 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
            left_join(s.inc.kill, by="MgmtUnit") %>% left_join(s.inc.mat.kill, by="MgmtUnit") %>%
            left_join(reg.fail.ex, by="MgmtUnit") %>% left_join(reg.fail.inc, by="MgmtUnit") %>%
            left_join(s.salv, by="MgmtUnit") %>% left_join(s.unaff, by="MgmtUnit")
-  names(track)[2:ncol(track)] <- c( "tot.inc", "even.age", "s.mat", "s.inc.burnt", "s.inc.mat.burnt",
+  names(track)[2:ncol(track)] <- c("tot.inc", "even.age", "s.mat", "s.inc.burnt", "s.inc.mat.burnt",
      "s.inc.kill", "s.inc.mat.kill", "reg.fail.ex", "reg.fail.in", "area.salvaged", "area.unaff")
   track <- left_join(track, cut.spp, by="MgmtUnit")
   track[,2:ncol(track)] <- track[,2:ncol(track)]*km2.pixel
