@@ -1,5 +1,6 @@
 rm(list=ls())
 suppressPackageStartupMessages({
+  library(foreign)
   library(rgdal)
   library(raster)
   library(tidyverse)
@@ -13,7 +14,7 @@ coord.nfi <- coordinates(nfi)
 names(coord.nfi) <- c("long", "lat")
 
 ## Forest inventory plots form dbf (in Lambert Conformal Conic)
-forest.data <- read.dbf(paste0(work.path, "/inputlyrs/dbf/points_2k2_ll.dbf"))
+forest.data <- read.dbf("C:/WORK/QBCMOD/QbcLDM/inputlyrs/dbf/points_2k2_ll.dbf")
 forest.data$X_COORD <- round(forest.data$X_COORD, 0)
 forest.data$Y_COORD <- round(forest.data$Y_COORD, 0)  
 forest.data <- cbind(forest.data, coord.nfi)
@@ -41,8 +42,7 @@ zones.aea[] <- round(zones.aea[])
 writeRaster(zones.aea, "C:/WORK/QBCMOD/QbcLDM/inputlyrs/asc/FRZone_aea.asc", format="ascii", overwrite=T)
 
 
-## Overlap fire perimeters and fire regime zones
-## (agencies in Québec province: QC and PC-LM)
+## Overlap fire perimeters and fire regime zones (agencies in Québec province: QC and PC-LM)
 v <- raster::extract(zones, fires.lcc) 
 major <- function(x){
   y <- ifelse(length(x)==0, NA, median(x, na.rm=T))
