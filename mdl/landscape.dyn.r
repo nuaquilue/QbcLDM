@@ -30,9 +30,10 @@ landscape.dyn <- function(scn.name){
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/fuel.type.r")  
-  
+  source("mdl/select.others.r")
   tic("  t")
   options(warn=-1)
+  select <- dplyr::select
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
@@ -77,13 +78,15 @@ landscape.dyn <- function(scn.name){
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
   track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
-                             aburnt=NA, fire.cycle=NA, indx.combust=NA)
+                                  aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
   track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, s.mat=NA, s.inc.burnt=NA, 
                            s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA, reg.fail.ex=NA, reg.fail.in=NA,
-                           area.salvaged=NA, area.unaff=NA, PET=NA, SAB=NA, OthCB=NA, ERS=NA, EPN=NA, OthDT=NA,
-                           OthCT=NA, BOJ=NA, OthDB=NA)
+                           area.salvaged=NA, area.unaff=NA)
+  track.spp.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
+  track.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, uneven.age=NA, s.mat=NA, s.rec.pc=NA)
+  track.spp.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
   
   
   ## Start the simulations
@@ -135,19 +138,21 @@ landscape.dyn <- function(scn.name){
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
-      print(paste0("scn:", scn.name, " - run:", irun, " - time:", t+year.ini))
+      print(paste0("scn:", scn.name, " - run:", irun, "/", nrun, " - time:", t+year.ini))
       
       ## Update climatic variables at each time step if climate change is activated
       ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
       ## The last column (temp19) then corresponds to the period 2095-2100
       ## The first time step (t=0) we start at 2010, so the first column to start with is column 4
       if(!is.na(clim.scn)){
-        land$Temp <- unlist(cc.temp[3+which(time.seq==t)], use.names=FALSE)
-        land$Precip <- unlist(cc.precip[3+which(time.seq==t)], use.names=FALSE)
-      }
-         ##########  Error in `$<-.data.frame`(`*tmp*`, Temp, value = c(-2.04, -2.09, -2.24,  : 
-      # replacement has 125677 rows, data has 125665
-      
+        aux <- cc.temp[,c(1,3+which(time.seq==t))]
+        names(aux) <- c("cell.id", "Temp")
+        land <- select(land, -Temp) %>% left_join(aux, by="cell.id")
+        aux <- cc.precip[,c(1,3+which(time.seq==t))]
+        names(aux) <- c("cell.id", "Precip")
+        land <- select(land, -Precip) %>% left_join(aux, by="cell.id")
+     }
+
       
       ##################################### PROCESSES OF CHANGE #####################################
       ## 1. FIRE
@@ -171,8 +176,7 @@ landscape.dyn <- function(scn.name){
       ## 2. SBW (under development)
       kill.cells <- integer()
       if(processes[sbw.id] & t %in% sbw.schedule){
-        kill.cells <- sbw.outbreak(land, severity=1, write.tbl.outputs=T,
-                                   km2.pixel=1, irun=1, t=0, out.path=NULL, out.overwrite=T)
+        kill.cells <- sbw.outbreak(land, severity=1, km2.pixel)
         # Done with outbreak
         land$TSDist[land$cell.id %in% kill.cells] <- 0
         land$DistType[land$cell.id %in% kill.cells] <- sbw.id
@@ -186,8 +190,10 @@ landscape.dyn <- function(scn.name){
         cc.out <- clear.cut(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                             salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id, t)
         cc.cells <- cc.out[[1]]
-        if(nrow(cc.out[[2]])>0)
+        if(nrow(cc.out[[2]])>0){
           track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[2]]))
+          track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[3]]))
+        }
         # Done with clear cuts
         land$TSDist[land$cell.id %in% cc.cells] <- 0
         land$DistType[land$cell.id %in% cc.cells] <- cc.id
@@ -203,9 +209,14 @@ landscape.dyn <- function(scn.name){
       # REVIEW land$TSPC[land$TSD < (land$age.mat/2)] <- 0
       pc.cells <- integer()
       if(processes[pc.id] & t %in% pc.schedule){
-        pc.cells <- partial.cut(land, hor.plan, km2.pixel, pc.step)
+        pc.out <- partial.cut(land, hor.plan, km2.pixel, pc.step)
+        pc.cells <- pc.out[[1]]
+        if(nrow(pc.out[[2]])>0){
+          track.pcut <- rbind(track.pcut, data.frame(run=irun, year=t+year.ini, pc.out[[2]]))
+          track.spp.pcut <- rbind(track.spp.pcut, data.frame(run=irun, year=t+year.ini, pc.out[[3]]))
+        }
         # Done with partial cuts
-        land$TPCut[land$cell.id %in% pc.cells] <- 0
+        land$TSPCut[land$cell.id %in% pc.cells] <- 0
         land$DistType[land$cell.id %in% pc.cells] <- pc.id
         pc.schedule <- pc.schedule[-1]  
       }  
@@ -233,20 +244,20 @@ landscape.dyn <- function(scn.name){
       
       ## Regeneration after fire
       buffer <- buffer.mig(land, burnt.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(filter(land, cell.id %in% burnt.cells), 
-                 post.fire.reg, buffer, suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
+      land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(land, burnt.cells, post.fire.reg, buffer, 
+                 suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
       
 
       ## Regeneration after sbw outbreak
       buffer <- buffer.mig(land, kill.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(filter(land, cell.id %in% kill.cells),
-                 post.sbw.reg, buffer, suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
+      land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(land, kill.cells, post.sbw.reg, buffer, 
+                 suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
       
       
       ##  Regeneration after clear-cutting
       buffer <- buffer.mig(land, cc.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(filter(land, cell.id %in% cc.cells),
-                  post.harvest.reg, buffer, suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
+      land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(land, cc.cells,post.harvest.reg, buffer, 
+                  suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
       
       
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
@@ -254,14 +265,15 @@ landscape.dyn <- function(scn.name){
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
         buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
         land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
-            forest.trans(filter(land, cell.id %in% unlist(chg.comp.cells)), 
-                         forest.succ, buffer, suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+            forest.trans(land, unlist(chg.comp.cells), forest.succ, buffer, 
+                         suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+        ## Before August 2020
         ## For those cells that change composition, reset Age at X years before maturity
         ## to account for the fact that a major change in species dominance is
         ## generaly due to significant mortality in the overstory
-        land$Age[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] <- 
-          land$AgeMatu[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] - 
-          sample(seq(10,40,5),1)
+        # land$Age[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] <- 
+        #   land$AgeMatu[(land$SppGrp != initial.forest.comp) & (land$cell.id %in% unlist(chg.comp.cells))] - 
+        #   sample(seq(10,40,5),1)
       }
       
       
@@ -277,7 +289,7 @@ landscape.dyn <- function(scn.name){
       land$Age <- land$Age + time.step
       land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
-      land$TPCut <- land$TPCut + time.step
+      land$TSPCut <- land$TSPCut + time.step
       
       
       ##################################### TRACKING AND SPATIAL OUTS #####################################
@@ -332,7 +344,14 @@ landscape.dyn <- function(scn.name){
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
   track.land.fuel[,4] <- round(track.land.fuel[,4], 3)
   write.table(track.land.fuel[-1,], paste0(out.path, "/FuelLand.txt"), quote=F, row.names=F, sep="\t")
-  
+  write.table(track.ccut[-1,], paste0(out.path, "/ClearCut.txt"), quote=F, row.names=F, sep="\t")
+  track.spp.ccut <- track.spp.ccut[-1,] 
+  track.spp.ccut <- track.spp.ccut %>% pivot_wider(names_from=SppGrp, values_from=x, values_fill=list(x=0))
+  write.table(track.spp.ccut, paste0(out.path, "/ClearCutSpp.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.pcut[-1,], paste0(out.path, "/PartialCut.txt"), quote=F, row.names=F, sep="\t")
+  track.spp.pcut <- track.spp.pcut[-1,] 
+  track.spp.pcut <- track.spp.pcut %>% pivot_wider(names_from=SppGrp, values_from=x, values_fill=list(x=0))
+  write.table(track.spp.pcut, paste0(out.path, "/PartialCutSpp.txt"), quote=F, row.names=F, sep="\t")
   toc()
 } 
 

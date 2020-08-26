@@ -16,9 +16,9 @@ partial.cut <- function(land, hor.plan, km2.pixel, pc.step){
   ## Based on stand composition: some species are mostly managed through even aged silviculture
   ## 5% of stands dominated by species traditionally managed through clear cuts are managed through PCs
   land <- mutate(land, rndm=runif(nrow(land)))
-  land.evenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT")
+  land.evenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
                          & is.na(Exclus) & rndm<=0.05) 
-  land.unevenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("BOJ", "ERS", "OthDB", "OthDT") 
+  land.unevenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("BOJ", "ERS", "OthDT") 
                            & is.na(Exclus) & rndm<=0.95) 
   land.uea <- rbind(land.evenage, land.unevenage)
   
@@ -91,17 +91,16 @@ partial.cut <- function(land, hor.plan, km2.pixel, pc.step){
     
   ################################################# TRACKING #################################################
   ## Species partially cut by management unit
-  pcut.spp  <- filter(land, cell.id %in% pc.cells) %>% group_by(MgmtUnit, SppGrp) %>% 
-               summarize(x=length(MgmtUnit)) %>% pivot_wider(names_from=SppGrp, values_from=x)
+  spp.pcut  <- filter(land, cell.id %in% pc.cells) %>% group_by(MgmtUnit, SppGrp) %>% 
+               summarize(x=length(MgmtUnit)*km2.pixel) 
 
   ## Merge all the info
   track <- left_join(s.uea, s.mat, by="MgmtUnit") %>% left_join(n.pc.cells, by="MgmtUnit")
   names(track)[2:ncol(track)] <- c("uneven.age", "s.mat", "s.rec.pc")
-  track <- left_join(track, pcut.spp, by="MgmtUnit")
   track[,2:ncol(track)] <- track[,2:ncol(track)]*km2.pixel
   track[is.na(track)] <- 0
   
   # Return the cell.id of the partially cut locations and the tracking info
-  return(list(pc.cells=pc.cells, track.cut=track))  
+  return(list(pc.cells=pc.cells, track.cut=track, spp.pcut=spp.pcut))  
 
 }

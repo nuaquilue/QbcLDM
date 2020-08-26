@@ -34,8 +34,11 @@ buffer.mig <- function(land, target.cells, potential.spp){
   
   ## A data frame with target.cells ids, Potential species and whether these are found in the neighborhood
   ## We assume that always at least 1 "other" spceies and "NonFor" cover are in the target neighborhood
+  # buffer.spp <- data.frame(cell.id=target.cells, 
+  #                          PotSpp=rep(c("OthCB", "OthDB", "OthCT", "OthDT", "NonFor"), each=length(target.cells)),
+  #                          PressBuffer=TRUE)
   buffer.spp <- data.frame(cell.id=target.cells, 
-                           PotSpp=rep(c("OthCB", "OthDB", "OthCT", "OthDT", "NonFor"), each=length(target.cells)),
+                           PotSpp=rep(c("OTH", "NonFor"), each=length(target.cells)),
                            PressBuffer=TRUE)
   
   ## Verify whether the closest neighs of each potential spp are close 

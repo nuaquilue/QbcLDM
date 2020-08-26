@@ -15,25 +15,18 @@
 ###   persist: is it a simulation scenario where species persistence in the face of unsuitable 
 ###            conditions is allowed
 ###
-###
-###   Details > It is a generic function that applies any species transition matrix 
-###             to any subset of land. 
-###
-###   Value > Returns a data frame with cell index and new species composition
-###          
 ######################################################################################
 
           # subland  <- filter(land, cell.id %in% burnt.cells)
           # prob.reg <- post.fire.reg
-# #
 #          subland  <- filter(land, cell.id %in% cc.cells)
 #          prob.reg <- post.harvest.reg
 
-forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp, 
+forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){
   
   ## If target data.frame is empty
-  if(nrow(subland)==0)
+  if(length(target.cells)==0)
     return(numeric())
     
   ## Tracking
@@ -44,6 +37,7 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   
   ## Keep the current species in case any potential species can colonize the site.
   ## In that case, the current species, persist.
+  subland <- filter(land, cell.id %in% target.cells)
   current.spp <- subland$SppGrp  
   
   ## Join to the subland data frame the probability of transition to PotSpp (according to initial SppGrp)
@@ -55,19 +49,16 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   
   ## Reset suitability for 'other species' because the group includes many species and 
   ## it's assumed that the climate would be suitable for at least one of those species. 
-  subland$SuitClim[subland$PotSpp=="OthCB"] <- 1
-  subland$SuitClim[subland$PotSpp=="OthDB"] <- 1
-  subland$SuitClim[subland$PotSpp=="OthCT"] <- 1
-  subland$SuitClim[subland$PotSpp=="OthDT"] <- 1
+  subland$SuitClim[subland$PotSpp=="OTH"] <- 1
   subland$SuitClim[subland$PotSpp=="NonFor"] <- 1
   subland$SuitSoil[subland$PotSpp=="NonFor"] <- 1
   
   ## Eufeuillement volontaire suite aux coupes, that is, after clear-cut for a % of EPN and SAB
   ## to transform to PET
   if(dtype=="C" & enfeuil>0){  
-    vec.enfeuil <- filter(subland, SppGrp %in% c("EPN","SAB") & PotSpp=="PET") %>% select(ptrans)
+    vec.enfeuil <- filter(subland, SppGrp %in% c("EPN", "SAB") & PotSpp=="PET") %>% select(ptrans)
     vec.enfeuil <- vec.enfeuil + (runif(length(vec.enfeuil))<enfeuil)*1000
-    subland$ptrans[subland$SppGrp %in% c("EPN","SAB") & subland$PotSpp=="PET"] <- unlist(vec.enfeuil)
+    subland$ptrans[subland$SppGrp %in% c("EPN", "SAB") & subland$PotSpp=="PET"] <- unlist(vec.enfeuil)
   }
   
   ## Reburning case: If burnt stands are too young, probability of successful natural regeneration is lower
@@ -99,14 +90,15 @@ forest.trans <- function(subland, prob.reg, buffer, suitab, potential.spp,
   ## Substitute dcast by "gather" or "spread" from tidyverse
   aux <- reshape2::dcast(subland, formula = cell.id ~ PotSpp, value.var = "p")
   
-  ## Now select a new spp according to these probabilitiesand assign the corresponing species name
+  ## Now select a new spp according to these probabilities and assign the corresponing species name
   ## If after all filters, p for all PotSpp is 0, the current species remains
   spp.names <- names(aux)[2:ncol(aux)]
   id.spp <- apply(aux[,2:ncol(aux)], 1, select.spp)
   new.spp <- numeric(length=length(id.spp))
   new.spp[id.spp!=0] <- spp.names[id.spp[id.spp!=0]]
   new.spp[id.spp==0] <- as.character(current.spp[id.spp==0])
-    
+  new.spp[new.spp=="OTH"] <- select.others(land, unique(subland$cell.id)[new.spp=="OTH"])
+  
   ## Return the vector with the name of the new spp
   return(new.spp)
 

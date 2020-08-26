@@ -24,6 +24,7 @@
 wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
                       fuel.types.modif, pigni.opt, km2.pixel, t){
   
+  cat("Wildfires", "\n" )
   
   ## Function to select items not in a vector
   `%notin%` <- Negate(`%in%`)
@@ -35,11 +36,13 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   ## Generate random probability of ignition or load static pigni
   if(pigni.opt=="rand"){
     pigni <- data.frame(cell.id=land$cell.id, frz=land$FRZone)
-    pigni$p <- runif(nrow(pigni),0,1)
+    pigni$p <- runif(nrow(pigni),0.01,1)
   }
-  if(pigni.opt=="static")
-    load("inputlyrs/rdata/pigni_static.rdata")
-
+  if(pigni.opt=="static.exp")
+    load("inputlyrs/rdata/pigni_static.exp.rdata")
+  if(pigni.opt=="static.nexp")
+    load("inputlyrs/rdata/pigni_static.nexp.rdata")
+  
   
   ## Wind direction between neigbours
   ## Wind direction is coded as 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE

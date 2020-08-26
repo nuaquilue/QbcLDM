@@ -64,7 +64,7 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   
   ## Also, look for zones at defforestation risk, both included and excluded
-  reg.fail.ex <- filter(land, !is.na(MgmtUnit)  & SppGrp %in% c("EPN", "SAB", "OthCB"), 
+  reg.fail.ex <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
                         TSDist==0, DistType==fire.id, Age<=50, !is.na(Exclus)) %>%
                  group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   reg.fail.inc <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
@@ -75,9 +75,9 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
   ## Some species are mostly managed through even aged silviculture (EPN, SAB, PET, OthCB, OthCT), while the rest
   ## are managed through unevenaged silviculture (BOJ, ERS, OthDB, OthDT).
   land <- mutate(land, rndm=runif(nrow(land)))
-  land.evenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT")
+  land.evenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
                          & is.na(Exclus) & rndm<=0.95) 
-  land.unevenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("BOJ", "ERS", "OthDB", "OthDT") 
+  land.unevenage <- filter(land, !is.na(MgmtUnit) & SppGrp %in% c("BOJ", "ERS", "OthDT") 
                            & is.na(Exclus) & rndm<=0.05) 
   land.ea <- rbind(land.evenage, land.unevenage)
   
@@ -166,7 +166,7 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
                                       round(salvage.rate.event*nrow(land.salv.mature.fmu)), replace=FALSE)
       
       ## When the number harvestable disturbed cells >= sustained yield level, select as many as you can
-      ## But when the number harvestable disturbed cells  < sustained yield level, select them all
+      ## But when the number harvestable disturbed cells< sustained yield level, select them all
       if(length(cell.salv.available) > round(n.cc.cells$x[n.cc.cells$MgmtUnit==unit]*salvage.rate.FMU)) 
         cells.salv <- sample(cell.salv.available, size=(round(n.cc.cells$x[n.cc.cells$MgmtUnit==unit]*salvage.rate.FMU)), replace=FALSE)                             
       else 
@@ -187,6 +187,10 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
     }
   }
     
+  ## INVESTIGATE WHY there are duplicates and cell.id not in land
+  cc.cells <- unique(c(cc.cells.salv, cc.cells.unaff))
+  cc.cells <- cc.cells[cc.cells %in% land$cell.id]
+  
   
   ################################################# TRACKING #################################################
   ## Area salvaged logged and area harvested
@@ -194,10 +198,9 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
   s.unaff <- filter(land, cell.id %in% cc.cells.unaff) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
   
   ## Species cut by management unit
-  cut.spp <- filter(land, cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
-             group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) %>%
-             pivot_wider(names_from=SppGrp, values_from=x)
-
+  spp.ccut <- filter(land, cell.id %in% c(cc.cells.salv, cc.cells.unaff)) %>%
+              group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)*km2.pixel) 
+  
   ## Merge all the info 
   track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat, by="MgmtUnit") %>% 
            left_join(s.inc.burnt, by="MgmtUnit") %>% left_join(s.inc.mat.burnt, by="MgmtUnit") %>%
@@ -206,11 +209,10 @@ clear.cut <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan,
            left_join(s.salv, by="MgmtUnit") %>% left_join(s.unaff, by="MgmtUnit")
   names(track)[2:ncol(track)] <- c("tot.inc", "even.age", "s.mat", "s.inc.burnt", "s.inc.mat.burnt",
      "s.inc.kill", "s.inc.mat.kill", "reg.fail.ex", "reg.fail.in", "area.salvaged", "area.unaff")
-  track <- left_join(track, cut.spp, by="MgmtUnit")
   track[,2:ncol(track)] <- track[,2:ncol(track)]*km2.pixel
   track[is.na(track)] <- 0
   
   ## Return the cell.id of the cut locations and the tracking info
-  return(list(cc.cells=unique(c(cc.cells.salv, cc.cells.unaff)), track.cut=track))  
+  return(list(cc.cells=cc.cells, track.cut=track, spp.ccut=spp.ccut))  
   
 }

@@ -21,7 +21,7 @@ suitability <- function(land, temp.suitability, precip.suitability, soil.suitabi
   
   # Vector with Potential Species
   PotSpp <- levels(land$SppGrp)
-  PotSpp <- PotSpp[PotSpp!="NonFor"]
+  PotSpp <- c(PotSpp[str_length(PotSpp)==3], "OTH")
   
   # Compute soil and climatic suitability per SppGrp  
   # Final suitability corresponds to the minimum value between soil and climate suitability

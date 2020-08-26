@@ -80,12 +80,14 @@ play.landscape.dyn <- function(){
   source("mdl/landscape.dyn.r")  
   scn.name <- "Test02"
   define.scenario(scn.name)
-  pigni.opt <- "static"
+  pigni.opt <- "static.exp"
   nrun <- 1
   write.sp.outputs <- F
   pb.upper.th <- 0.75 
   pb.lower.th <- -1 
-  dump(c("nrun", "pigni.opt", "write.sp.outputs", "pb.lower.th", "pb.upper.th"), 
+  clim.scn <- "rcp45"
+  time.horizon <- 30
+  dump(c("nrun", "pigni.opt", "write.sp.outputs", "pb.lower.th", "pb.upper.th", "clim.scn", "time.horizon"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
   
@@ -99,7 +101,7 @@ play.read.state.vars <- function(){
   source("mdl/read.state.vars.r")
   read.state.vars(work.path)
   source("mdl/build.pigni.r")
-  build.pigni(work.path, lambda=0.03)
+  build.pigni(work.path, lambda=0.04, r=0.95, first.time=F)
 }
 
 
@@ -145,4 +147,43 @@ write.plot.sp.input <- function(){
 }
 
 
+plot.prob.igni <- function(){
+  rm(list=ls())
+  
+  ## Assign probability of ignition p=1/(1+exp(d))
+  dist <- seq(0,50,1)
+  r <- 0.95
+  prob.igni <- r/(1+exp(scales::rescale(dist, to=c(-3, 2), from=c(0,40))))
+  plot(prob.igni~dist, type="l", ylim=c(0,1))
+  abline(h=0, col="blue", lty=3)
+  abline(h=1, col="blue", lty=3)
+  k <- c(5,10,20,30,40)
+  a <- r/(1+exp(scales::rescale(k, to=c(-3, 2), from=c(0,40))))
+  points(a~k, col="red")
+  
+  ## Assign probability of ignition p=exp(-lamda* d)
+  lambda <- 0.04
+  dist <- seq(0,50,1)
+  prob.igni <- exp(-lambda*dist)
+  plot(prob.igni~dist, type="l", ylim=c(0,1))
+  abline(h=0, col="blue", lty=3)
+  abline(h=1, col="blue", lty=3)
+  k <- c(5,10,20,30,40)
+  a <- exp(-lambda*k)
+  points(a~k, col="red")
+  
+  # plot maps
+  library(viridis)
+  load(file="inputlyrs/rdata/mask.rdata")
+  #  p=exp(-lamda* d)
+  load(file="inputlyrs/rdata/pigni_static.exp.rdata")
+  PIGNI <- MASK 
+  PIGNI[!is.na(MASK[])] <- pigni$p
+  plot(PIGNI, col=viridis(6), zlim=c(0,0.9))
+  #  p=1/(1+exp(d))
+  load(file="inputlyrs/rdata/pigni_static.nexp.rdata")
+  PIGNI[!is.na(MASK[])] <- pigni$p
+  plot(PIGNI, col=viridis(6), zlim=c(0,0.9))
+  
+}
 

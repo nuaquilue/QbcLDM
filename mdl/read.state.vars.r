@@ -40,16 +40,20 @@ read.state.vars <- function(work.path){
   
   
   ## 2. Read the new fire regime zones, transform to the .dbf projections and overlap
-  ZONES <- readOGR(paste0(work.path, "DataIn/ZonageFeux/2020.06.02/zones_nuria.shp"))
-  ZONESp <- spTransform(ZONES, CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
+  first.time <- T
+  if(first.time){
+    ZONES <- readOGR(paste0(work.path, "DataIn/ZonageFeux/2020.06.02/zones_nuria.shp"))
+    ZONESp <- spTransform(ZONES, CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
                     +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
-  points <- SpatialPoints(forest.data[,2:3],  CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
+    points <- SpatialPoints(forest.data[,2:3],  CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
                     +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
-  aux <- data.frame(points, over(points, ZONESp)) %>% dplyr::select(-x)
-  names(aux)[3] <- "FRZ"
-  forest.data <- left_join(forest.data, aux,  by = c("X_COORD", "Y_COORD"))
-  rm(aux)
-    # save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
+    aux <- data.frame(points, over(points, ZONESp)) %>% dplyr::select(-x)
+    names(aux)[3] <- "FRZ"
+    forest.data <- left_join(forest.data, aux,  by = c("X_COORD", "Y_COORD"))
+    rm(aux)
+    save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
+  }
+  load(paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
   
   
   ## 3. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
@@ -65,7 +69,7 @@ read.state.vars <- function(work.path){
   ## Then join the forest data 
   dta <- data.frame(cell.id = 1:ncell(MASK), mask=MASK[], round(coordinates(MASK),0)) %>%
          left_join(dplyr::select(forest.data, UNIQUE_ID, X_COORD, Y_COORD, UH_REG2, TECO2, TEMPE, PRECI, 
-                          COMPO, TSD, DEP3, EXCLU, UAF18, MATU, FRZ, DOM), 
+                          COMPO2, TSD, DEP3, EXCLU, UAF18, MATU, FRZ, DOM), 
                    by=c("x"="X_COORD", "y"="Y_COORD"))
   
   
@@ -80,7 +84,7 @@ read.state.vars <- function(work.path){
                      Temp = dta$TEMPE,
                      Precip = dta$PRECI,
                      MgmtUnit = dta$UAF18,
-                     SppGrp = sub("BOP", "OthDT", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO))),
+                     SppGrp = sub("BOP", "OthDT", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO2))),
                      EcoType = substr(dta$TECO2,0,2),
                      Age = dta$TSD,
                      SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", dta$DEP3)))))),
@@ -89,25 +93,16 @@ read.state.vars <- function(work.path){
   
   
   ## 6. Do some cleaning and customizations at the initial data:
-  ## 6.1 Reclassify Other category in 4 categories: OthDT, OthDC, OthDB, OthCB according to EcoType
-  thesaurus <- data.frame(EcoType=c("FC", "FE", "FO", "LA", "LL", "MA", "ME", "MF", "MJ", "MS", "RB", "RC", "RE", "RP", "RS", "RT", "TO"),
-                         other=c("OthDT", "OthDT", "OthDT", "OthDT", "OthDT", "OthCB", "OthCB", "OthDT", "OthDB", "OthCB", "OthCT", "OthCB", "OthCB", "OthCT", "OthCB", "OthCT", "OthCB"))
-  land <- left_join(land, thesaurus, by="EcoType")
-  levels(land$SppGrp) <- c(levels(land$SppGrp), "OthDT",  "OthCT", "OthDB", "OthCB")
-  selection <- !is.na(land$SppGrp) & land$SppGrp=="other"
-  land$SppGrp[selection] <- land$other[selection]
-  land$SppGrp <- factor(land$SppGrp)      # remove the 'other' level (and the 'rege' level too)
-  
-  ## 6.2. Reclassify regenerating stands according to the composition of the neigbhour and
+  ## 6.1. Reclassify regenerating stands according to the composition of the neigbhour and
   ## the site's ecological type. 
   land$SppGrp[!is.na(land$SppGrp) & land$SppGrp=="rege"] <- 
               neighour.spp(land, target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")],
               radius.neigh=10000, km2.pixel=(cell.size/1000)^2)
   
-  ## 6.3. Remove "EcoType" and "other", as these are not anymore needed 
-  land <- select(land, -EcoType, -other)
+  ## 6.2. Remove "EcoType" and "other", as these are not anymore needed 
+  land <- select(land, -EcoType)
   
-  ## 6.4. Clean Age to be suitable for the model
+  ## 6.3. Clean Age to be suitable for the model
   land$Age[land$Age==-99] <- -1
   ## Re-equilibrate the age class distribution of locations with age <= 20 years
   ## to compensate for a lack of precision in the initial values of regenerating stands 
@@ -124,7 +119,7 @@ read.state.vars <- function(work.path){
   ## Make sure that the age classes are presented in 5-year increments
   land$Age <- round(land$Age/time.step)*time.step
   
-  ## 6.5. Modify maturity
+  ## 6.4. Modify maturity
   land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("ERS", "BOJ")] <- 105
   land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("PET")] <- 65
   land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
@@ -133,7 +128,7 @@ read.state.vars <- function(work.path){
   land$AgeMatu[land$AgeMatu < 60] <- 60
   land$AgeMatu[land$AgeMatu > 100 ] <- 100    
   
-  ## 6.6. Assign "T" to missing surficial deposits
+  ## 6.5. Assign "T" to missing surficial deposits
   land$SoilType[!is.na(land$SppGrp) & is.na(land$SoilType)] <- "T"
   
   
@@ -153,7 +148,7 @@ read.state.vars <- function(work.path){
   ## 7.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, 
   ## half the age of maturity
-  land$TSPCut <- land$AgeMatu/2
+  land$TSPCut <- (land$AgeMatu %/% 10)/2*10
   
   ## 8. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
   ## reset factor's levels, and only eep cells that are not NA
@@ -165,7 +160,10 @@ read.state.vars <- function(work.path){
     ##                      EPN - Black spruce
     ##                      ERS - Sugar maple
     ##                      NonFor - Non forest
-    ##                      other                
+    ##                      OthCB - Other conifer boreal                
+    ##                      OthCT - Other conifer temperate
+    ##                      OthDB - Other deciduous boreal
+    ##                      OthDT - Other deciduous temperate
     ##                      PET - Trembling aspen
     ##                      SAB - Balsam fir
   
