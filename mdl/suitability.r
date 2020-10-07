@@ -6,54 +6,47 @@
 ###                 regeneration-succession section of landscape.dyn
 ###
 ###  Arguments >  
-###   subland : data frame of the state variables (subset of cells to be examined)      
-###   ThMeanTemp : thresholds of temperature suitability for 5 species
-###   ThAnnualPrecip : thresholds of precipitation suitability for 5 species
-###   ThSoil : thresholds of soil type suitability for 5 species
-###   
+###   land : data frame of the state variables (subset of cells to be examined)      
+###   temp.suitability: thresholds of temperature suitability for 5 species
+###   precip.suitability: thresholds of precipitation suitability for 5 species
+###   soil.suitability: thresholds of soil type suitability for 5 species
+###   suboptimal:
+###
 ###  Details > Called in the succession section of landscape.dyn
 ###
 ###  Value > Returns a data frame with cell index and suitability
 ######################################################################################
 
-# subland <- land[is.na(land$SoilType),]
-
-suitability <- function(subland, ThMeanTemp, ThAnnualPrecip, ThSoil,Subopt){
+suitability <- function(land, temp.suitability, precip.suitability, soil.suitability, suboptimal){
   
-  # Matrix to store the suitability thresholds per location and species
-  suitab_x <- data.frame(cell.indx=subland$cell.indx, SAB=0, EPN=0, PET=0, BOJ=0, ERS=0, other=0)
-  suitab_x2 <- suitab_x
-  # Matrix with thresholds
-  mtemp <- ThMeanTemp[,-1]
-  mprec <- ThAnnualPrecip[,-1]
-  msols <- ThSoil[,-1]
+  # Vector with Potential Species
+  PotSpp <- levels(land$SppGrp)
+  PotSpp <- c(PotSpp[str_length(PotSpp)==3], "OTH")
   
-  ## patch for missing surficial deposits
+  # Compute soil and climatic suitability per SppGrp  
+  # Final suitability corresponds to the minimum value between soil and climate suitability
+  dta <- data.frame(cell.id=NA, PotSpp=NA, SuitSoil=NA, SuitClim=NA)
+  for(spp in PotSpp){
+    th.temp <- filter(temp.suitability, Spp==spp) %>% select(-Spp)
+    th.precip <- filter(precip.suitability, Spp==spp) %>% select(-Spp)
+    th.soil <- filter(soil.suitability, Spp==spp) %>% select(-Spp)
+    aux <- data.frame(cell.id=land$cell.id, PotSpp=spp, temp=land$Temp, precip=land$Precip, soil=land$SoilType) %>%
+           mutate(class.temp=as.numeric(cut(temp, th.temp)),
+                  class.precip=as.numeric(cut(precip, th.precip)),
+                  suit.temp=ifelse(is.na(class.temp), 0, ifelse(class.temp==2, 1, suboptimal)),
+                  suit.precip=ifelse(is.na(class.precip), 0, ifelse(class.precip==2, 1, suboptimal)),
+                  SuitSoil=as.numeric(th.soil[match(soil, c("T","O","R","S","A"))]),
+                  SuitClim=pmin(suit.temp, suit.precip)) %>%
+           select(cell.id, PotSpp, SuitSoil, SuitClim)
+    dta <- rbind(dta, aux)
+  }
   
-  subland[is.na(subland$SoilType),]$SoilType <- "T"
+  ## Upgrade climatic and soil suitability for "other" and "NonFor" SppGrp
+  # subland$SuitClim[subland$PotSpp=="other"] <- 1
+  dta <- rbind(dta, data.frame(cell.id=land$cell.id, PotSpp="NonFor", SuitSoil=1, SuitClim=1))
   
-  # Following function produces three vectors for the 6 species (one
-  # vector temp, one for prec, one for soils). For the 'other' species only
-  # soil suitability is assessed (not climate).
-  # Suitability codes: NA : unsuitable, 1 or 3 : moderate, 2 : high  
-  
-  for (k in 1:6) {  # 
-    suitability_t <- as.numeric(cut(subland$Temp, mtemp[k,])) 
-    suitability_t2 <- (suitability_t==2)*1+(suitability_t %in% c(1,3) * Subopt)  
-    suitability_t2[is.na(suitability_t2)] <- 0    
-    suitability_p <- as.numeric(cut(subland$Precip, mprec[k,])) 
-    suitability_p2 <- (suitability_p==2)*1+(suitability_p %in% c(1,3) * Subopt)  
-    suitability_p2[is.na(suitability_p2)] <- 0  
-    suitability_s <- as.numeric(msols[k,][match(subland$SoilType, c("T","O","R","S","A"))]  )
-    suitability_s[is.na(suitability_s)] <- 0   # 0 means non forest  
-    suitab_x[,k+1]  <- pmin(suitability_s)  
-    suitab_x2[,k+1] <- pmin(suitability_t2, suitability_p2)  
-    
-  }  
-  # two output vectors: one for climatic suitability, one for soil suitability
-  x <- melt(suitab_x,id=c("cell.indx"))
-  names(x) <- c("cell.indx","PotSpp","SuitSoil")
-  x$SuitClim <- melt(suitab_x2,id=c("cell.indx"))[,3]
-  return(x[order(x$cell.indx),])
- 
+  # Remove first NA row and order by cell.id
+  dta <- dta[-1,]
+  dta <- dta[order(dta$cell.id),]
+  return(dta)
 }
