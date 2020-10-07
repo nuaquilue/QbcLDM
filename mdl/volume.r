@@ -18,18 +18,24 @@
 volume <- function(land, km2.pixel){
   
   # call yield curves (three site indexes)
-  courbes <-  read.table("C:/Users/boumav/Desktop/courbes_SI.txt", header=T)
-  names(courbes) <- c("Age","SI","volume")
+  courbes <-  read.table("courbes_SI2.txt", header=T)
+  names(courbes) <- c("Age","Matu","VolMax","volume")
   
   # determine volume as a function of stand age and site index
   land.vol <- land
   land.vol$Age [land.vol$Age>150] <- 150
-  land.vol$SI <- as.character(land.vol$EcoType2)
-  land.vol$SI[land.vol$SI=="RE"] <- "SI9"
-  land.vol$SI[land.vol$SI=="ter_co"] <- "SI9"
-  land.vol$SI[land.vol$SI=="RS"] <- "SI12"
-  land.vol$SI[land.vol$SI=="FE"] <- "SI19"  
-  land.vol2 <- land.vol %>% inner_join(courbes, by = c("Age","SI"))
+  land.vol$VolMax <- as.character(land.vol$EcoType2)
+  land.vol$VolMax[land.vol$VolMax=="RE"] <- "V90"
+  land.vol$VolMax[land.vol$VolMax=="ter_co"] <- "V90"
+  land.vol$VolMax[land.vol$VolMax=="RS"] <- "V150"
+  land.vol$VolMax[land.vol$VolMax=="FE"] <- "V250"  
+  
+  land.vol$Matu <- land.vol$AgeMatu
+  land.vol$Matu[land.vol$Matu %in% c(40,45,50,60)] <- "M50"
+  land.vol$Matu[land.vol$Matu %in% c(65,70,75,80)] <- "M70"
+  land.vol$Matu[land.vol$Matu %in% c(85,90,95,100,105,110)] <- "M90"
+  
+  land.vol2 <- land.vol %>% inner_join(courbes, by = c("Age","VolMax","Matu"))
   
   ## Volume per species per management unit
 

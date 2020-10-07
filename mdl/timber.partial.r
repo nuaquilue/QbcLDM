@@ -5,7 +5,7 @@
 
 timber.partial <- function(land, hor.plan, km2.pixel, pc.step){  
   
-  cat("Timber Partialcutting", "\n")
+  cat("Timber supply uneven-aged stands - area", "\n")
   
   ## Initialize empty vector for the clear cut cells 
   pc.cells <- numeric(0)
@@ -37,8 +37,8 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
   ## Compute sustainable yield per FMU
   recoltable.s <- cbind(s.uea %>% select(-x), matrix(NA, nrow=nrow(s.uea), ncol=hor.plan))
 
-  ### corriger TSPC en fonction des perturbations sévères récentes
-  ### les peuplements sont accessibles à la coupe partielle 15 ans avant d'être matures
+  ### corriger TSPC en fonction des perturbations s?v?res r?centes
+  ### les peuplements sont accessibles ? la coupe partielle 15 ans avant d'?tre matures
   
   vsc.cor.pc2 <- land.uea$Age <land.uea$AgeMatu
   land.uea$TSPCut[vsc.cor.pc2] <- land.uea$Age[vsc.cor.pc2] - (land.uea$AgeMatuPC[vsc.cor.pc2]-15)

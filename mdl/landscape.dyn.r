@@ -30,6 +30,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/timber2.r") 
   source("mdl/timber.volume.r") 
   source("mdl/timber.partial.r") 
+  source("mdl/timber.partial.volume.r") 
   source("mdl/partial.cut2.r") 
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
@@ -80,7 +81,7 @@ landscape.dyn <- function(scn.name){
   ## 3. The area affected by the disturbances in each Biolcimatic Domain
   track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
   track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
-                                    C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Cold=NA)
+                                    C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Old=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
   track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
@@ -125,7 +126,7 @@ landscape.dyn <- function(scn.name){
     track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=0, 
                               group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
                               C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
-                              C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
+                              C100=sum(Age<=100)*km2.pixel, Old=sum(Age>100)*km2.pixel)))
     
     
     ## Record initial suitability classes per BCDomain 
@@ -196,17 +197,28 @@ landscape.dyn <- function(scn.name){
         sbw.schedule <- sbw.schedule[-1]
       } 
       
-      
-      ## 3 CLEAR CUTING
-      cc.cells <- integer()
-      
-      # timber supply calculation - only during first period if replanning is not selected
+      ## Timber supply calculation - only during first period if replanning is not selected
+      # timber supply even-aged stands
       if(t == 0 | replanif==1) {
               harv.level <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                       salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id, t)
       }
+      # timber supply uneven aged stands 
+      if(t == 0 | replanif==1) {
+        harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)        
+      }            
+      
+      #TEST: timber supply in volume
+      #if (irun==1 & t == 0){
+      #  timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
+      #                salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
+       # timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
+      #        }
+      
+      ## 3 CLEAR CUTING
+      cc.cells <- integer()
 
-      # selection of harvested cells according to timber supply
+      # selection of harvested cells based on timber supply
       cc.cells <- integer()
       if(processes[cc.id] & t %in% cc.schedule){      
         cc.out <- clear.cut2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
@@ -223,11 +235,6 @@ landscape.dyn <- function(scn.name){
       }
       
       ## 4. PARTIAL CUTING (under development)
-      
-      # timber supply calculation - only during first period if replanning is not selected
-      if(t == 0 | replanif==1) {
-        harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)        
-      }
 
       # selection of harvested cells according to timber supply calculation
       if(processes[pc.id] & t %in% pc.schedule){
@@ -242,14 +249,9 @@ landscape.dyn <- function(scn.name){
         land$DistType[land$cell.id %in% pc.cells] <- pc.id
         pc.schedule <- pc.schedule[-1]  
       }  
-      
-      source("mdl/timber.volume.r") 
-      # harvested volume
-      if (irun==1 & t == 0){
-        timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
-      }
-      
+
+      # calculates volume harvested in cells affected by clearcuts or
+      # partial cuts (rough estimation)
       vol.out.cc.m3 <- volume(land[land$DistType == cc.id & land$TSDist ==0,],km2.pixel) 
       vol.out.pc.m3 <- volume(land[land$DistType == pc.id & land$TSPCut ==0,],km2.pixel)
       
@@ -326,8 +328,8 @@ landscape.dyn <- function(scn.name){
                                 group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
       track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=t+year.ini, 
                                   group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
-                                  C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
-                                  C100=sum(Age<=100)*km2.pixel, Cold=sum(Age>100)*km2.pixel)))
+                                  C40=sum(Age<=40 & Age >20 )*km2.pixel, C60=sum(Age<=60 & Age >40)*km2.pixel, C80=sum(Age<=80 & Age >60)*km2.pixel, 
+                                  C100=sum(Age<=100 & Age >80)*km2.pixel, Old=sum(Age>100)*km2.pixel)))
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
               group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 

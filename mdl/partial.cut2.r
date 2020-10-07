@@ -40,7 +40,7 @@ partial.cut2 <- function(land, hor.plan, km2.pixel, pc.step, harv.level.pc){
     pc.cells.ua <- numeric()
     nb.cell.dispo <- length(land.rec$cell.id[land.rec$MgmtUnit==unit])
     poss <- harv.level.pc$x[harv.level.pc$MgmtUnit==unit]
-    if(poss>0 &  nb.cell.dispo>0) {
+    if(length(poss>0 &  nb.cell.dispo>0)>0) {
       
       niv.rec <- min(poss,nb.cell.dispo)
       pc.cells.ua <- sample(land.rec$cell.id[land.rec$MgmtUnit==unit], size=niv.rec, replace=FALSE)

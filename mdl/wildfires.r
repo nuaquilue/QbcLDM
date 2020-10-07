@@ -70,7 +70,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   #                          flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
   
   
-  ## Start burning until annual target area per fire zone is not reached izone="E"
+  ## Start burning until annual target area per fire zone is not reached 
+  izone="E"
   for(izone in fr.zones){
     
     ## Determine annual area burnt per zone, but considering fire rate increase with time 
@@ -87,10 +88,10 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
       }
     }
     target.area <- round(rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)) #in km2
-    target.size <- round(target.area/km2.pixel)
+#   target.size <- round(target.area/km2.pixel)
     
     ## Record
-    cat(paste("Zone:", izone, "- TargetSize (pxls):", target.size), "\n")
+    cat(paste("Zone:", izone, "- target.area (pxls):", target.area), "\n")
     
     ## For each fire zone, look for the associated fire size distribution; and 
     ## only keep potential ignitions cells in the fire zone
@@ -100,7 +101,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
     ## Initialize traking variables every zone
     fire.id <- track.burnt <- 0
     pxl.burnt <- fire.size.target <- 0 ## to make the first "if" condition true
-    while(track.burnt < target.size){   ## condition in pixels
+    while(track.burnt < target.area){   ## condition in pixels
     
       ## ID for each fire event
       fire.id <- fire.id+1
@@ -125,7 +126,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
         # fire.size.target.modif <- pmax(1, round(fire.area.modif/km2.pixel))
       }
       ## Do not target more than what remains to be burnt at the zone level
-      fire.size.target <- min(fire.size.target, target.size-track.burnt)
+      fire.size.target <- min(fire.size.target, target.area-track.burnt)
       fire.size.target
       
       ## Assign the main wind direction 
@@ -222,7 +223,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   ## TRACKING
   track.fire <- track.fire[-1,]; track.fire
   track.regime <- group_by(track.fire, zone) %>% summarize(nfires=length(atarget), atarget=sum(atarget), aburnt=sum(aburnt)) %>%
-                  left_join(group_by(land, FRZone) %>% summarize(atot=length(FRZone)), by=c("zone"="FRZone")) %>%
+                  left_join(group_by(land, FRZone) %>% summarize(atot=length(FRZone)*km2.pixel), by=c("zone"="FRZone")) %>%
                   mutate(fire.cycle=round(time.step*atot/aburnt)) %>%
                   left_join(current.fuels, by="zone") %>% mutate(indx.combust=x) %>% select(-atot, -x)
   # fuels

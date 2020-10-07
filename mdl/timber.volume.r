@@ -8,7 +8,7 @@
 timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                           salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t){  
 
-  cat("Timber.volume", "\n" )
+  cat("Timber supply even-aged stands in volume", "\n" )
              
   # Silence  
   options(warn=-1)
@@ -82,19 +82,19 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
 
 
       # maximum theoretical harvestable area per period for each stratum
-      # VOLUME: ON ASSUME QUE LES PEUPLEMENTS SONT EXACTEMENT À MATURITÉ
+      # VOLUME: ON ASSUME QUE LES PEUPLEMENTS SONT EXACTEMENT ? MATURIT?
       land.ea2 <- land.ea[land.ea$AgeMatu == age.mat.stra,]
       land.ea2$Age <- land.ea2$AgeMatu
       vol.max <- sum(volume(land.ea2,km2.pixel)$x)
       recoltable2[j,] <- vol.max/(age.mat.stra/5) * (1:hor.plan)   
-      # on revient à l'âge initial pour les calculs subséquents
+      # on revient ? l'?ge initial pour les calculs subs?quents
       land.ea2 <- land.ea[land.ea$AgeMatu == age.mat.stra,]
       # Determine the period when maturity will be reached for the different age classes
       for (per in 0:(hor.plan-1)) {# per=0  
               # on calcule le volume des peuplements matures 
         vol.act <- sum(volume(land.ea2[land.ea2$Age>=land.ea2$AgeMatu,],km2.pixel)$x)
         recoltable[j,per+1] <- vol.act
-      # pour chaque période, on update l'âge des peuplements pour la périopde suivante
+      # pour chaque p?riode, on update l'?ge des peuplements pour la p?riopde suivante
         land.ea2$Age <- land.ea2$Age + 5
       } 
 

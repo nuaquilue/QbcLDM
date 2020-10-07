@@ -5,7 +5,7 @@
 
 timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){  
   
-  cat("Timber Partialcutting volume", "\n")
+  cat("Timber supply uneven aged stands - volume", "\n")
   
   ## Initialize empty vector for the clear cut cells 
   pc.cells <- numeric(0)
@@ -37,8 +37,8 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
   ## Compute sustainable yield per FMU
   recoltable.s <- cbind(s.uea %>% select(-x), matrix(NA, nrow=nrow(s.uea), ncol=hor.plan))
 
-  ### corriger TSPC en fonction des perturbations sévères récentes
-  ### les peuplements sont accessibles à la coupe partielle 15 ans avant d'être matures
+  ### corriger TSPC en fonction des perturbations s?v?res r?centes
+  ### les peuplements sont accessibles ? la coupe partielle 15 ans avant d'?tre matures
   
   vsc.cor.pc2 <- land.uea$Age <land.uea$AgeMatu
   land.uea$TSPCut[vsc.cor.pc2] <- land.uea$Age[vsc.cor.pc2] - (land.uea$AgeMatuPC[vsc.cor.pc2]-15)
@@ -60,21 +60,21 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
         age.mat.stra <- strate.fmu$AgeMatuPC[j]
         # extraire les TSPC pour la strate et l'UA courante
         TSPCstrate <- land.uea$TSPCut[land.uea$MgmtUnit==unit & land.uea$AgeMatuPC==age.mat.stra] 
-        # VOLUME: calcul des valeurs maximales en assumant que toutes les cellules sont a maturité
+        # VOLUME: calcul des valeurs maximales en assumant que toutes les cellules sont a maturit?
         # seulement pour la strate et l'UA courante
         land.uea2 <- land.uea[land.uea$MgmtUnit==unit &land.uea$AgeMatuPC == age.mat.stra,]
         land.uea2$Age <- land.uea2$AgeMatu
         vol.max.uea <- sum(volume(land.uea2,km2.pixel)$x)/2
-        # volume maximal théorique récoltable par période pour chaque strate
+        # volume maximal th?orique r?coltable par p?riode pour chaque strate
         recoltable2[j,] <- (vol.max.uea/(age.mat.stra/pc.step)) * (1:hor.plan)   
-        # on revient à l'âge initial pour les calculs subséquents
+        # on revient ? l'?ge initial pour les calculs subs?quents
         land.uea2 <- land.uea[land.uea$MgmtUnit==unit &land.uea$AgeMatuPC == age.mat.stra,]
         # Determine the period when maturity will be reached for the different age classes
         for (per in 0:(hor.plan-1)) {
                     # on calcule le volume des peuplements matures 
           vol.act <- sum(volume(land.uea2[land.uea2$TSPCut>=land.uea2$AgeMatuPC,],km2.pixel)$x)/2
           recoltable[j,per+1] <- vol.act
-          # pour chaque période, on update l'âge des peuplements pour la périopde suivante
+          # pour chaque p?riode, on update l'?ge des peuplements pour la p?riopde suivante
           land.uea2$TSPCut <- land.uea2$TSPCut + pc.step
         }
 

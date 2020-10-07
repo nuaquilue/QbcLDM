@@ -34,7 +34,7 @@
 timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                       salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t){  
 
-  cat("Timber2", "\n" )
+  cat("Timber supply even aged stands - area", "\n" )
              
   # Silence  
   options(warn=-1)
