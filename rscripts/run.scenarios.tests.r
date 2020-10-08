@@ -8,7 +8,10 @@ rm(list = ls())
 
 # Set the working directory 
 
-setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+#setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+
+setwd("C:/Users/boumav/Desktop/QbcLDM")
+
 
 # Load the model
 source("mdl/define.scenario.r")  

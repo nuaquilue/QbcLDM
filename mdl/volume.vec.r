@@ -15,7 +15,7 @@
 ###  Value > It writes a data frame with the assessment of age class per species group.
 ######################################################################################
 
-volume <- function(land, km2.pixel){
+volume.vec <- function(land){
   
   # call yield curves (three site indexes)
   courbes <-  read.table("courbes_SI2.txt", header=T)
@@ -30,18 +30,18 @@ volume <- function(land, km2.pixel){
   land.vol$VolMax[land.vol$VolMax=="EAU"] <- "V150"
   land.vol$VolMax[land.vol$VolMax=="RS"] <- "V150"
   land.vol$VolMax[land.vol$VolMax=="FE"] <- "V250"  
+  unique(land.vol$Matu)
   
   land.vol$Matu <- land.vol$AgeMatu
   land.vol$Matu[land.vol$Matu %in% c(40,45,50,60)] <- "M50"
   land.vol$Matu[land.vol$Matu %in% c(65,70,75,80)] <- "M70"
   land.vol$Matu[land.vol$Matu %in% c(85,90,95,100,105,110)] <- "M90"
   
-  land.vol2 <- land.vol %>% inner_join(courbes, by = c("Age","VolMax","Matu"))
+  land.vol2 <- land.vol %>% left_join(courbes, by = c("Age","VolMax","Matu"))
   
   ## Volume per species per management unit
 
-    vol.out <- filter(land.vol2) %>%
-    group_by(MgmtUnit, SppGrp, DistType) %>% summarize(x=sum(volume)*km2.pixel*100) 
+    vol.out <-  land.vol2$volume
   
 return(vol.out=vol.out)
 }

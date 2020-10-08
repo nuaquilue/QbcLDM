@@ -22,8 +22,6 @@
 ###   km2.pixel : number of km2 per pixel on the grid 
 ###   irun : the current replica (used when writing results)
 ###   t : the current time step  (used when writing results)
-###   out.path : directory path to save output text files
-###   out.overwrite : if TRUE the output text files are overwritten 
 ###
 ###  Details > For each management unit and each period, calculate a theoretically sustainable harvesting rate, 
 ###            and harvest it in burnt and non-burnt stands
@@ -84,9 +82,6 @@ clear.cut2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan
   #target.old.ha  <- s.inc %>% mutate(x=target.old.pct * (s.inc$x + s.ex$x))
   #target.old.ha.ea <- target.old.ha %>% mutate(x=pmax(0, target.old.ha$x - s.ex.mat$x))
   
-  
-  
-  
   cc.cells.salv.tot <- cc.cells.unaff.tot <- cc.cells <- numeric(0)
   
   unit=units[18] # for testing
@@ -111,7 +106,7 @@ clear.cut2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan
     cell.salv.available <- sample(subland.salv.mature$cell.id, round(salvage.rate.event*nrow(subland.salv.mature)), replace=FALSE)
   
     # Randomly select cells among the even-aged mature cells present in non-protected areas
-    # Prioritize clear cuts in disturbed areas
+    # Prioritize clear cuts in disturbed areas (salvage logging)
     if (s.ea.u!=0) {
     
       # When the number harvestable disturbed cells >= sustained yield level, select as many as you can

@@ -15,11 +15,11 @@ partial.cut2 <- function(land, hor.plan, km2.pixel, pc.step, harv.level.pc){
   land$MgmtUnit <- as.numeric(as.character(land$MgmtUnit))
   land2 <- land[!is.na(land$MgmtUnit),]
   
-  land.evenage <- filter(land2,  SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
+  land.resineux <- filter(land2,  SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
                          & is.na(Exclus) & rndm<=0.05) 
-  land.unevenage <- filter(land2,  SppGrp %in% c("BOJ", "ERS", "OthDT") 
+  land.feuil.tol <- filter(land2,  SppGrp %in% c("BOJ", "ERS", "OthDT") 
                            & is.na(Exclus) & rndm<=0.95) 
-  land.uea <- rbind(land.evenage, land.unevenage)
+  land.uea <- rbind(land.resineux, land.feuil.tol)
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
   land.uea$AgeMatuPC <- round(land.uea$AgeMatu,-1)/2
@@ -33,7 +33,6 @@ partial.cut2 <- function(land, hor.plan, km2.pixel, pc.step, harv.level.pc){
   s.mat <- group_by(land.rec, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
   
   ############################## SELECT CELLS TO BE HARVESTED ##############################
-  ## Now that the optimal yield level has been determined, 
   ## select the cells to be harvested during the current period
   ## Randomly select cells among the uneven-aged mature cells present in non-protected areas
   for(unit in unique(land.uea$MgmtUnit)){  #unit=9351

@@ -29,6 +29,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/clear.cut2.r") 
   source("mdl/timber2.r") 
   source("mdl/timber.volume.r") 
+  source("mdl/harvest.volume.r") 
   source("mdl/timber.partial.r") 
   source("mdl/timber.partial.volume.r") 
   source("mdl/partial.cut2.r") 
@@ -209,11 +210,11 @@ landscape.dyn <- function(scn.name){
       }            
       
       #TEST: timber supply in volume
-      #if (irun==1 & t == 0){
-      #  timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-      #                salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
-       # timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
-      #        }
+      if (irun==1 & t == 0){
+        timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
+                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
+        timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
+              }
       
       ## 3 CLEAR CUTING
       cc.cells <- integer()
