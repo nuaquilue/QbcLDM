@@ -19,35 +19,35 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
   land$MgmtUnit <- as.numeric(as.character(land$MgmtUnit))
   land2 <- land[!is.na(land$MgmtUnit),]
   
-  land.evenage <- filter(land2,  SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
-                         & is.na(Exclus) & rndm<=0.05) 
-  land.unevenage <- filter(land2,  SppGrp %in% c("BOJ", "ERS", "OthDT") 
-                           & is.na(Exclus) & rndm<=0.95) 
-  land.uea <- rbind(land.evenage, land.unevenage)
+ # land2 <- mutate(land2, rndm=runif(nrow(land2)))
+  
+#  even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
+#  sum(even) 
+ # even[land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm>0.95] <- 1
+  land2$even[land2$TSF==0] <- 1
+
+  land.uea <- land2[land2$even==0,]
+  
+  land.uea2 <- land.uea[land.uea$TSPCut>=0,]
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
-  land.uea$AgeMatuPC <- round(land.uea$AgeMatu,-1)/2
+  land.uea2$AgeMatuPC <- round(land.uea2$AgeMatu,-1)/2
   
   ## Get the number of cells to be managed under a partial-cut regime
-  s.uea <- group_by(land.uea, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
+  s.uea <- group_by(land.uea2, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
 
   # Number of strata corresponding to the number of different ages of maturity present in each FMU. 
-  strates <- group_by(land.uea, MgmtUnit, AgeMatuPC) %>% summarize(x=length(unique(AgeMatuPC)))
-  #unique(land.uea$AgeMatuPC)
+  strates <- group_by(land.uea2, MgmtUnit, AgeMatuPC) %>% summarize(x=length(unique(AgeMatuPC)))
+
   ## Compute sustainable yield per FMU
   recoltable.s <- cbind(s.uea %>% select(-x), matrix(NA, nrow=nrow(s.uea), ncol=hor.plan))
 
-  ### corriger TSPC en fonction des perturbations s?v?res r?centes
-  ### les peuplements sont accessibles ? la coupe partielle 15 ans avant d'?tre matures
+  ###########################
+  ## ON CORRIGE EN FONCTION DES PERTURBATIONS RÉCENTES, PAS DE L'AGE
+  ###### A VERIFIER
   
-  vsc.cor.pc2 <- land.uea$Age <land.uea$AgeMatu
-  land.uea$TSPCut[vsc.cor.pc2] <- land.uea$Age[vsc.cor.pc2] - (land.uea$AgeMatuPC[vsc.cor.pc2]-15)
-        
-  vsc.cor.pc <- land.uea$TSDist <land.uea$AgeMatu
-  land.uea$TSPCut[vsc.cor.pc] <- land.uea$TSDist[vsc.cor.pc] - (land.uea$AgeMatuPC[vsc.cor.pc]-15)
-
   unit = 9351
-  for(unit in unique(land.uea$MgmtUnit)){
+  for(unit in unique(land.uea2$MgmtUnit)){
     strate.fmu <- filter(strates, MgmtUnit==unit)
     as.data.frame(strate.fmu)
     ## The calculation is only performed if there are cells to harvest
@@ -60,7 +60,8 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
         age.mat.stra <- strate.fmu$AgeMatuPC[j]
         # extraire les TSPC pour la strate et l'UA courante
         
-        TSPCstrate <- land.uea$TSPCut[land.uea$MgmtUnit==unit & land.uea$AgeMatuPC==age.mat.stra] 
+        TSPCstrate <- land.uea2$TSPCut[land.uea2$MgmtUnit==unit & land.uea2$AgeMatuPC==age.mat.stra] 
+        table(TSPCstrate)
         # superficie maximale théorique récoltable par période pour chaque strate
         recoltable2[j,] <- (length(TSPCstrate)/(age.mat.stra/pc.step)) * (1:hor.plan)   
         # Determine the period when maturity will be reached for the different age classes

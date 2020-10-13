@@ -81,6 +81,7 @@ define.scenario <- function(scn.name){
                  # for attenuation of natural disturbance impacts on timber supply fluctuations.
   replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
                  # once, during the first period
+  timber.supply <- "area.based"
   
   
   ## VEGETATION DYNAMICS parameters:

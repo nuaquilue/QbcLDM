@@ -1,4 +1,4 @@
-+########################################################## 
+########################################################## 
 ## Run the LANDSCAPE DYNAMIC MODEL for QU?BEC for multiple
 ## scenarios with customized parameters
 ########################################################## 
@@ -8,9 +8,9 @@ rm(list = ls())
 
 # Set the working directory 
 
-#setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
 
-setwd("C:/Users/boumav/Desktop/QbcLDM")
+#setwd("C:/Users/boumav/Desktop/QbcLDM")
 
 
 # Load the model
@@ -52,9 +52,10 @@ avec.combu <- 1 # prise en compte du combustible lors de la propagation des feux
                 # also a modifyer of the landcape-level fire regime
 enfeuil=0.7 # Corresponds to the proportion of black spruce stands that will be converted to hardwood 
             # after fire (plantation), in order to reduce the fire risk
-salvage.rate.FMU <- 0.2  # maximum proportion of mature burned stands that will be salvaged when burned
+salvage.rate.FMU <- 0.7  # maximum proportion of mature burned stands that will be salvaged when burned
 write.sp.outputs <- 0
 enable.succ <- 0
+#timber.supply <- "area.based"
 
 # Write the name of any updated parameter in the following call
 dump(c("processes", "time.horizon",
@@ -94,11 +95,12 @@ enfeuil=0.7 # Corresponds to the proportion of black spruce stands that will be 
 salvage.rate.FMU <- 0.2  # maximum proportion of mature burned stands that will be salvaged when burned
 write.sp.outputs <- 0
 enable.succ <- 0
+timber.supply <- "volume.based"
 
 # Write the name of any updated parameter in the following call
 dump(c("processes", "time.horizon",
        "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","write.sp.outputs",
-       "enable.succ","target.old.pct"), 
+       "enable.succ","target.old.pct","timber.supply"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 # Run this scenario (count the time it takes)
 system.time(landscape.dyn(scn.name))

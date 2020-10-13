@@ -45,6 +45,7 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
   
   # Name of the management units.
   land2 <- land[!is.na(land$MgmtUnit),]
+  land2$even[land2$TSF==0] <- 1
   
   units <- as.character(sort(unique(land2$MgmtUnit[!is.na(land2$MgmtUnit)])))
   
@@ -66,24 +67,24 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     
     # categories of burned area - young (cannot be salvaged) vs mature (can be salvaged)
     
-    s.inc.burnt     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$DistType == fire.id & land2$TSDist ==0 & is.na(land2$Exclus)])
-    s.inc.mat.burnt <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$DistType == fire.id & land2$TSDist ==0 & is.na(land2$Exclus)])
-    s.inc.kill     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$DistType == sbw.id & land2$TSDist %in% c(0,5) & is.na(land2$Exclus)])
-    s.inc.mat.kill <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$DistType == sbw.id & land2$TSDist %in% c(0,5) & is.na(land2$Exclus)])
+    s.inc.burnt     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$TSF==0 & is.na(land2$Exclus)])
+    s.inc.mat.burnt <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$TSF==0 & is.na(land2$Exclus)])
+    s.inc.kill     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
+    s.inc.mat.kill <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
     
     #print(paste("tordeuse",s.inc.kill,s.inc.mat.kill))
     
     # Extract the portion that is managed through even-aged silviculture (clearcutting) based 
     # on species dominance. Some species are mostly managed through even aged silviculture (EPN,
     # SAB, PET, others), the rest through unevenaged silviculture.
-    land.ea1 <- land2[land2$MgmtUnit == unit &  land2$TSDist >= 0 &  
-                      land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus),]
-    land.ea2 <- land2[land2$MgmtUnit == unit &  land2$TSDist >= 0 &  
-                      land2$SppGrp %in% c("BOJ", "ERS", "OthDT") & is.na(land2$Exclus),]
-    land.ea3 <- land.ea2[runif(nrow(land.ea2))<0.05,]
-    land.ea4 <- land.ea1[runif(nrow(land.ea1))<0.95,]
-    land.ea <- rbind(land.ea4,land.ea3)
+
+   # even <- land2$MgmtUnit == unit & land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
+  #  sum(even) 
+  #  even[land2$MgmtUnit == unit & land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm>0.95] <- 1
+
     
+    land.ea <- land2[land2$MgmtUnit == unit & land2$even==1,] 
+    dim(land.ea)
     # Get the area managed under an even-aged regime
     s.ea <- length(land.ea$cell.id)   
     
@@ -95,7 +96,6 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     # Subset of harvestable (mature even-aged) cells
     land.rec <- land.ea[land.ea$Age >= land.ea$AgeMatu,]
     s.mat <- nrow(land.rec)
-    
     
     #### Determine the sustained yield level
     

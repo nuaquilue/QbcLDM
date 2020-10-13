@@ -26,19 +26,19 @@ landscape.dyn <- function(scn.name){
   })
   source("mdl/wildfires.r")
   source("mdl/sbw.outbreak.r") 
-  source("mdl/clear.cut2.r") 
-  source("mdl/timber2.r") 
-  source("mdl/timber.volume.r") 
+
   source("mdl/harvest.volume.r") 
+  source("mdl/harvest.area.r")
   source("mdl/timber.partial.r") 
   source("mdl/timber.partial.volume.r") 
-  source("mdl/partial.cut2.r") 
+  source("mdl/timber2.r") 
+  source("mdl/timber.volume.r") 
   source("mdl/buffer.mig.r")            
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/fuel.type.r")  
   source("mdl/select.others.r")
-  source("mdl/volume.r")  
+  source("mdl/volume.vec.r")  
   tic("  t")
   options(warn=-1)
   select <- dplyr::select
@@ -89,14 +89,16 @@ landscape.dyn <- function(scn.name){
                                   aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
   track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
-  track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, s.mat=NA, s.inc.burnt=NA, 
-                           s.inc.mat.burnt=NA, s.inc.kill=NA, s.inc.mat.kill=NA, reg.fail.ex=NA, reg.fail.in=NA,
-                           area.salvaged=NA, area.unaff=NA)
-  track.spp.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
+  track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
+                           a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
+                           area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA,
+                           a.pcut=NA, v.pcut=NA)
+  track.spp.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, spp.ccut=NA, spp.ccut.vol=NA,
+                               spp.pcut=NA, spp.pcut.vol=NA)
   track.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, uneven.age=NA, s.mat=NA, s.rec.pc=NA)
   track.spp.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
   track.vol <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, DistType=NA, x=NA)
-  
+    
   
   ## Start the simulations
   irun <- 1
@@ -147,7 +149,19 @@ landscape.dyn <- function(scn.name){
     ## so recalculation of AAC level is only calculated once, during the first period
     ref.harv.level <- table(land$MgmtUnit)*NA
     
-    
+    # variables temporaires
+    land$TSF <- 100
+    land$TSSBW <- 100
+    land$TSCC <- land$Age
+    land$TSPCut <- land$Age - (land$AgeMatu/2)
+    # determiner le regime de coupe - even aged (1), uneven aged(0), autres(2)
+    land <- mutate(land, rndm=runif(nrow(land)))
+    land$even <-2
+    land$even[land$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land$Exclus) & land$rndm<=0.95] <- 1
+    land$even[land$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land$Exclus) & land$rndm>0.95] <- 0
+    land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm>0.95] <- 1
+    land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm<=0.95] <- 0    
+
     ## Start 
     t <- 0
     for(t in time.seq){
@@ -186,7 +200,7 @@ landscape.dyn <- function(scn.name){
         land$DistType[land$cell.id %in% burnt.cells] <- fire.id
         fire.schedule <- fire.schedule[-1]          
       }
-      
+      land$TSF[land$cell.id %in% burnt.cells] <- 0
         
       ## 2. SBW (under development)
       kill.cells <- integer()
@@ -196,70 +210,74 @@ landscape.dyn <- function(scn.name){
         land$TSDist[land$cell.id %in% kill.cells] <- 0
         land$DistType[land$cell.id %in% kill.cells] <- sbw.id
         sbw.schedule <- sbw.schedule[-1]
-      } 
-      
-      ## Timber supply calculation - only during first period if replanning is not selected
-      # timber supply even-aged stands
-      if(t == 0 | replanif==1) {
+      }
+
+      ###################################################
+      ################ 3 and 4 : harvesting 
+      ########## Timber supply calculation - only during first period if replanning is not selected
+      # AREA BASED
+      if((t == 0 | replanif==1)& timber.supply == "area.based") {
+              # even-aged
               harv.level <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                       salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id, t)
+              TS.CC.area <- harv.level
+              # uneven-aged
+              harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
+              TS.PC.area <- harv.level.pc
       }
-      # timber supply uneven aged stands 
-      if(t == 0 | replanif==1) {
-        harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)        
-      }            
-      
-      #TEST: timber supply in volume
-      if (irun==1 & t == 0){
-        timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
+
+      # VOLUME BASED - in development
+      if(timber.supply == "volume.based" & (processes[cc.id] & t %in% cc.schedule)
+         &(t == 0 | replanif==1)) {
+      #source("mdl/timber.partial.volume.r")
+      #source("mdl/timber.volume.r")
+      TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                       salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
-        timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
-              }
-      
-      ## 3 CLEAR CUTING
-      cc.cells <- integer()
-
-      # selection of harvested cells based on timber supply
-      cc.cells <- integer()
-      if(processes[cc.id] & t %in% cc.schedule){      
-        cc.out <- clear.cut2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                            salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
-        cc.cells <- cc.out[[1]]
-        if(nrow(cc.out[[2]])>0){
-          track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[2]]))
-          track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, cc.out[[3]]))
-        }
-        # Done with clear cuts
-        land$TSDist[land$cell.id %in% cc.cells] <- 0
-        land$DistType[land$cell.id %in% cc.cells] <- cc.id
-        cc.schedule <- cc.schedule[-1]  
+      TS.PC.vol <-timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
       }
       
-      ## 4. PARTIAL CUTING (under development)
-
-      # selection of harvested cells according to timber supply calculation
-      if(processes[pc.id] & t %in% pc.schedule){
-        pc.out2 <- partial.cut2(land, hor.plan, km2.pixel, pc.step, harv.level.pc)
-        pc.cells <- pc.out2[[1]]
-        if(nrow(pc.out2[[2]])>0){
-          track.pcut <- rbind(track.pcut, data.frame(run=irun, year=t+year.ini, pc.out2[[2]]))
-          track.spp.pcut <- rbind(track.spp.pcut, data.frame(run=irun, year=t+year.ini, pc.out2[[3]]))
-        }
-        # Done with partial cuts
-        land$TSPCut[land$cell.id %in% pc.cells] <- 0
-        land$DistType[land$cell.id %in% pc.cells] <- pc.id
-        pc.schedule <- pc.schedule[-1]  
-      }  
-
-      # calculates volume harvested in cells affected by clearcuts or
-      # partial cuts (rough estimation)
-      vol.out.cc.m3 <- volume(land[land$DistType == cc.id & land$TSDist ==0,],km2.pixel) 
-      vol.out.pc.m3 <- volume(land[land$DistType == pc.id & land$TSPCut ==0,],km2.pixel)
+      ## Selection of harvested cells based on timber supply
+ 
+      if(timber.supply == "volume.based" & (processes[cc.id] & t %in% cc.schedule)) {
+          cc.cells <- integer()
+          #source("mdl/harvest.volume.r") 
+          harv.out <- harvest.vol(land, cc.step, diff.prematurite, hor.plan, TS.CC.vol,TS.PC.vol,
+                              salvage.rate.event, harv.level, km2.pixel, fire.id, sbw.id, t)
+          cc.cells <- harv.out[[1]]
+          pc.cells <- harv.out[[2]]
+          if(nrow(harv.out[[3]])>0){
+            track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
+            track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
+          }
+          # Done with clear cuts
+          land$TSDist[land$cell.id %in% cc.cells] <- 0
+          #land$TSDist[land$cell.id %in% pc.cells] <- 0
+          land$TSPcut[land$cell.id %in% pc.cells] <- 0
+          land$DistType[land$cell.id %in% cc.cells] <- cc.id
+          land$DistType[land$cell.id %in% pc.cells] <- pc.id
+          cc.schedule <- cc.schedule[-1]  
+          pc.schedule <- pc.schedule[-1]  
+                 }
       
-      if((nrow(vol.out.cc.m3)>0)|(nrow(vol.out.pc.m3)>0)){
-        vol.out.pc.m3$x <- vol.out.pc.m3$x/2
-        vol.out.m3 <- rbind(vol.out.cc.m3,vol.out.pc.m3)
-        track.vol <- rbind(track.vol, data.frame(run=irun, year=t+year.ini, vol.out.m3))
+      if(timber.supply == "area.based" & (processes[cc.id] & t %in% cc.schedule)){      
+          #source("mdl/harvest.area.r")
+          cc.cells <- integer()
+          harv.out <- harvest.area(land, cc.step, diff.prematurite, hor.plan, TS.CC.area,TS.PC.area,salvage.rate.FMU,
+                          salvage.rate.event, harv.level, km2.pixel, t)
+          cc.cells <- harv.out[[1]]
+          pc.cells <- harv.out[[2]]
+          if(nrow(harv.out[[3]])>0){
+            track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
+            track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
+           }
+          # Done with clear cuts
+          land$TSDist[land$cell.id %in% cc.cells] <- 0
+          #land$TSDist[land$cell.id %in% pc.cells] <- 0
+          land$TSPcut[land$cell.id %in% pc.cells] <- 0
+          land$DistType[land$cell.id %in% cc.cells] <- cc.id
+          land$DistType[land$cell.id %in% pc.cells] <- pc.id
+          cc.schedule <- cc.schedule[-1]  
+          pc.schedule <- pc.schedule[-1]  
       }
 
       ##################################### VEGETATION DYNAMICS #####################################
@@ -316,13 +334,16 @@ landscape.dyn <- function(scn.name){
       land$Age[land$cell.id %in% kill.cells] <- 0
       land$Age[land$cell.id %in% cc.cells] <- 0
       
+      land$TSPCut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)
+
       
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
       land$Age <- land$Age + time.step
       land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
       land$TSPCut <- land$TSPCut + time.step
-      
+      land$TSF <- land$TSF + time.step      
+      land$TSSBW <- land$TSSBW + time.step     
       
       ##################################### TRACKING AND SPATIAL OUTS #####################################
       track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=t+year.ini, 
@@ -339,14 +360,7 @@ landscape.dyn <- function(scn.name){
       aux <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
       track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=t+year.ini, aux))
       rm(suitab); rm(aux)
-      
-      if(irun==1){
-        ref.harv.level.cp <- table(land$MgmtUnit[land$cell.id %in% pc.cells])
-        write.table(cbind(ref.harv.level, ref.harv.level.cp)*km2.pixel, 
-                    file = paste0(out.path, "/InitialHarvestLevel.txt"),
-                    quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)                 
-      }
-      
+
       ## If required, plot maps of DisturbanceType at each time step 
       if(write.sp.outputs){
         MAP <- MASK
@@ -381,12 +395,8 @@ landscape.dyn <- function(scn.name){
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.ccut[-1,], paste0(out.path, "/ClearCut.txt"), quote=F, row.names=F, sep="\t")
   track.spp.ccut <- track.spp.ccut[-1,] 
-  track.spp.ccut <- track.spp.ccut %>% pivot_wider(names_from=SppGrp, values_from=x, values_fill=list(x=0))
   write.table(track.spp.ccut, paste0(out.path, "/ClearCutSpp.txt"), quote=F, row.names=F, sep="\t")
-  write.table(track.pcut[-1,], paste0(out.path, "/PartialCut.txt"), quote=F, row.names=F, sep="\t")
-  track.spp.pcut <- track.spp.pcut[-1,] 
-  track.spp.pcut <- track.spp.pcut %>% pivot_wider(names_from=SppGrp, values_from=x, values_fill=list(x=0))
-  write.table(track.spp.pcut, paste0(out.path, "/PartialCutSpp.txt"), quote=F, row.names=F, sep="\t")
+
   toc()
 } 
 

@@ -29,17 +29,16 @@
 ###  Value >  A vector of the indexes of the harvested cells.
 ######################################################################################
 
-harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.PC.vol, 
-                      salvage.rate.event, harv.level, km2.pixel, fire.id, sbw.id, t){  
+harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS.PC.area, salvage.rate.FMU,
+                      salvage.rate.event, harv.level, km2.pixel, t){  
 
    
   #harv.level <- ref.harv.level
-  cat("Select clearcut and partial cut cells - volume based", "\n" )
+  cat("Select clearcut and partial cut cells - area based", "\n" )
   
   land2 <- land[!is.na(land$MgmtUnit),]
-    source("mdl/volume.vec.r") 
   land2$vol <- (volume.vec(land2)*km2.pixel*100)
-  land2 <- land2[order(-land2$vol),]
+ # land2 <- land2[order(-land2$vol),]
 
   units <- as.character(sort(unique(land2$MgmtUnit[!is.na(land2$MgmtUnit)])))
 
@@ -50,9 +49,9 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   
   ## For those locations that can be harvested (included), differentiate those that have been burnt or killed
   ## by an outbreak, and then count the young (cannot be salvaged) vs the mature (can be salvaged)
-  s.inc.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id) %>% 
+  s.inc.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id & Age>AgeMatu) %>% 
+  s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0 & Age>AgeMatu) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
@@ -61,27 +60,26 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   
   ## Also, look for zones at defforestation risk, both included and excluded
   reg.fail.ex <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                        TSDist==0, DistType==fire.id, Age<=50, !is.na(Exclus)) %>%
+                        TSF==0, Age<=50, !is.na(Exclus)) %>%
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   reg.fail.inc <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                         TSDist==0, DistType==fire.id, Age<=50, is.na(Exclus)) %>%
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+                         TSF==0, Age<=50, is.na(Exclus)) %>%
+                          group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
 
   
-  land2 <- mutate(land2, rndm=runif(nrow(land2)))
+  #land2 <- mutate(land2, rndm=runif(nrow(land2)))
+  #even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
+  #sum(even) 
+  #even[land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm>0.95] <- 1
+  land2$even[land2$TSF==0] <- 1
 
-  even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
-  sum(even) 
-  even[land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm<=0.05] <- 1
-  even[land2$TSF==0] <- 1
+  land.coniferes <- land2[land2$even==1,] 
+  land.feuillu.tol <- land2[land2$even==0,] 
   
-  land.coniferes <- land2[even==1,] 
-  land.feuillu.tol <- land2[even==0,] 
-  
-  land.ea <- rbind(land.coniferes, land.feuillu.tol)
+  land.ea <- land.coniferes
   s.ea <- group_by(land.ea, MgmtUnit) %>% summarise(x=length(MgmtUnit)) 
   ### possibilité
-  poss.init <-  TS.CC.vol # read.table("InitialVolume.txt", header=T)  
+  poss.init <-  TS.CC.area # read.table("InitialVolume.txt", header=T)  
 
   ## Subset the mature even-aged cells from those that are harvestable
   land.rec <- filter(land.ea, Age>=AgeMatu)
@@ -92,8 +90,7 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   unit=2371 #units[18] # for testing
   for(unit in units){
     #harv.level.u <- harv.level[harv.level$MgmtUnit == as.numeric(unit),2]
-    harv.level.u <- poss.init[poss.init$unit == as.numeric(unit),2]
-    harv.level.u <- as.numeric(harv.level.u)
+    harv.level.u <- poss.init[poss.init$MgmtUnit == as.numeric(unit),2]
     
     land.ea.u <- land.ea[land.ea$MgmtUnit==unit,]
     
@@ -103,46 +100,57 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
     land.ea.mat.u <- land.ea.u[land.ea.u$Age >= land.ea.u$AgeMatu,]
 
     subland.salv.mature.burn <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & 
-                                            land.ea.u$DistType == fire.id & land.ea.u$TSDist ==0, ]
+                                             land.ea.u$TSF ==0, ]
+    liste.recuperables.FMU <- sample(subland.salv.mature.burn$cell.id, round(salvage.rate.FMU*nrow(subland.salv.mature.burn)))
+
+    subland.salv.mature.burn2 <- subland.salv.mature.burn[subland.salv.mature.burn$cell.id %in% liste.recuperables.FMU,]
+
+    if(length(subland.salv.mature.burn2$cell.id) > round(salvage.rate.event* harv.level.u)) {
+          liste.2 <- sample(subland.salv.mature.burn2$cell.id,round((salvage.rate.event* harv.level.u)), replace=FALSE)
+           subland.salv.mature.burn3 <- subland.salv.mature.burn2[subland.salv.mature.burn2$cell.id %in% liste.2,]
+    } else {
+      subland.salv.mature.burn3 <- subland.salv.mature.burn2
+    }
+        
     subland.salv.mature.sbw <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & 
-                                           land.ea.u$DistType == sbw.id & land.ea.u$TSDist %in% c(0,5), ]  
-    subland.salv.mature <- rbind(subland.salv.mature.burn,subland.salv.mature.sbw)
+                                           land.ea.u$TSSBW %in% c(0,5), ]  
+    subland.salv.mature <- rbind(subland.salv.mature.burn3,subland.salv.mature.sbw)
     
     # sélection de cellules récupérables en tenant compte
     # des contraintes a priori (maximum salvage rate, etc.)
-    cell.salv.available <- sample(subland.salv.mature$cell.id, round(salvage.rate.event*nrow(subland.salv.mature)), replace=FALSE)
+    cell.salv.available <- subland.salv.mature$cell.id #sample(subland.salv.mature$cell.id, round(salvage.rate.event*nrow(subland.salv.mature)), replace=FALSE)
+        
      
     #############################################
     # Randomly select cells among the even-aged mature cells present in non-protected areas
     # Prioritize clear cuts in disturbed areas (salvage logging)
-    # VOLUME: CELLS SELECTED FROM THE HIGHEST TO LOWEST VOLUMES, UNTIL CONDITION MET
-    x <- sum(subland.salv.mature[subland.salv.mature$cell.id %in%cell.salv.available,]$vol )
+
+    x <- length(cell.salv.available )# x = disponible
     cc.cells.salv <-  numeric(0)
-    xx <-0
+    xx <-0 # récolté
     
     while (x > 0 & length(cell.salv.available)>0 & xx < harv.level.u)    {
-      paquet <- ifelse((x > 550000) & (harv.level.u-xx > 550000),5,1 ) # pour accélérer le calcul, paquets de 5 cellules
+      paquet <- ifelse((x <= harv.level.u) ,x,harv.level.u ) # pour accélérer le calcul, paquets de 5 cellules
       cc.cells.salv.x <- cell.salv.available[1:paquet]  #sample(cell.salv.available,1)
       cc.cells.salv <- c(cc.cells.salv,cc.cells.salv.x)
       cell.salv.available <- cell.salv.available[-which(cell.salv.available%in%cc.cells.salv.x)]
       x <- sum(subland.salv.mature[subland.salv.mature$cell.id %in%cell.salv.available,]$vol )
-      xx <- sum(land.ea[land.ea$cell.id %in%cc.cells.salv,]$vol )
+      xx <- length(cc.cells.salv )
     }
     
     # When salvaged cells were not enough to satisfy sustained yield level, then harvest some mature 
     # forests unaffected by disturbances (cc.cells.unaff).
 
-    subland.non.pertu <- land.ea.mat.u[land.ea.mat.u$TSDist!=0, ]
-    x <- sum(subland.non.pertu$vol )
+    subland.non.pertu <- land.ea.mat.u[land.ea.mat.u$TSF!=0, ]
+    x <- length(subland.non.pertu$cell.id ) # x = disponible
     cc.cells.unaff <- numeric(0)
     #  arrête la récolte lorsqu'on est rendu à < 40000m3 du but, il y aura parfois des dépassements
-    while(x > 0 & length(subland.non.pertu$cell.id)>0 & xx < (harv.level.u-40000)) {
-       paquet <- ifelse((x > 550000) & (harv.level.u-xx > 550000),5,1 )
-       cc.cells.unaff.x <- subland.non.pertu[1:paquet,]$cell.id #sample( subland.non.pertu$cell.id, 1)
+    while(x > 0 & length(subland.non.pertu$cell.id)>0 & xx < (harv.level.u)) {
+       paquet <- ifelse(harv.level.u-xx >= 0 ,min(x,harv.level.u-xx) ,0 )
+       cc.cells.unaff.x <- sample( subland.non.pertu$cell.id, paquet)
        cc.cells.unaff   <- c(cc.cells.unaff,cc.cells.unaff.x)
        subland.non.pertu <- subland.non.pertu[-which(subland.non.pertu$cell.id%in%cc.cells.unaff.x),]
-       x <- sum(subland.non.pertu$vol,na.rm=T )
-       xx <- sum(land.ea[land.ea$cell.id %in%c(cc.cells.salv,cc.cells.unaff),]$vol )
+       xx <- length(c(cc.cells.unaff,cc.cells.salv ))
      }
        
 
@@ -152,13 +160,14 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
     cc.cells.unaff.tot <- c(cc.cells.unaff.tot, cc.cells.unaff)
     
   }
-  length(cc.cells.unaff.tot)
+  length(cc.cells)
  
   ############################
   ################## partial cuts
   
-  land.uea <- land2[land2$cell.id %in% land.ea$cell.id ,]
-
+  land.uea <- land.feuillu.tol
+  s.uea <- group_by(land.uea, MgmtUnit) %>% summarise(x=length(MgmtUnit)) 
+  
   # volume par cellule. Moitié du volume accessible
   land.uea$vol <- land.uea$vol/2
   
@@ -166,30 +175,30 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   land.uea$AgeMatuPC <- round(land.uea$AgeMatu,-1)/2
   
   ## Subset of harvestable (i.e. mature uneven-aged, ot recently partial cut) cells
-  land.rec.pc <- filter(land.uea, Age>=(AgeMatu-15) & TSDist >=(AgeMatu-15) & TSPCut >=AgeMatuPC )
+  land.rec.pc <- filter(land.uea, TSPCut >=AgeMatuPC )
   
   ## Get the number of cells to be managed under a partial-cut regime
   s.uea <- group_by(land.uea, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
-  s.mat <- group_by(land.rec.pc, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
+  s.mat.pc <- group_by(land.rec.pc, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
   
-  harv.level.pc <- TS.PC.vol # read.table("InitialVolumePC.txt", header=T)
+  harv.level.pc <- TS.PC.area # read.table("InitialVolumePC.txt", header=T)
   pc.cells <- 0
   for(unit in unique(land.uea$MgmtUnit)){  #unit=9351
 
   
     poss.cp.ua <- harv.level.pc$x[harv.level.pc$MgmtUnit==unit]
     cell.dispo.ua <- land.rec.pc[land.rec.pc$MgmtUnit==unit, ]
-    x <- sum(cell.dispo.ua$vol )
+    x <- length(cell.dispo.ua$cell.id ) #disponible
     pc.cells.ua <- numeric(0)
     xx <- 0
     #  arrête la récolte lorsqu'on est rendu à < 20000m3 du but, il y aura parfois des dépassements
-    while(x > 0 & length(cell.dispo.ua$cell.id)>0 & xx < (poss.cp.ua-20000) ) {
-      paquet <- ifelse((x > 260000) & (poss.cp.ua-xx > 260000),5,1 )
-      pc.cells.ua.x <- cell.dispo.ua[1:paquet,]$cell.id #sample( subland.non.pertu$cell.id, 1)
+    while(x > 0 & length(cell.dispo.ua$cell.id)>0 & xx < (poss.cp.ua) ) {
+      paquet <- ifelse(poss.cp.ua-xx >= 0 ,min(x,poss.cp.ua-xx) ,0 )
+      pc.cells.ua.x <- sample( cell.dispo.ua$cell.id, paquet)
       pc.cells.ua   <- c(pc.cells.ua,pc.cells.ua.x)
       cell.dispo.ua <- cell.dispo.ua[-which(cell.dispo.ua$cell.id%in%pc.cells.ua.x),]
-      x <- sum(cell.dispo.ua$vol,na.rm=T ) # volume restant
-      xx <- sum(land.uea[land.uea$cell.id %in%c(pc.cells.ua),]$vol ) # volume récolté
+      #x <- sum(cell.dispo.ua$vol,na.rm=T ) # volume restant
+      xx <- length(c(pc.cells.ua )) # aire récoltée
     }
     
       ## Add the cells partially cut in this UA:
@@ -231,7 +240,7 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
     group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol))
      
   ## Merge all the info, FMU level
-  track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat, by="MgmtUnit") %>% 
+  track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat.pc, by="MgmtUnit") %>% 
            left_join(s.inc.burnt, by="MgmtUnit") %>% left_join(s.inc.mat.burnt, by="MgmtUnit") %>%
            left_join(s.inc.kill, by="MgmtUnit") %>% left_join(s.inc.mat.kill, by="MgmtUnit") %>%
            left_join(reg.fail.ex, by="MgmtUnit") %>% left_join(reg.fail.inc, by="MgmtUnit") %>%
@@ -247,7 +256,7 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   
   spp.track <- left_join(spp.ccut, spp.ccut.vol, by=c("MgmtUnit", "SppGrp")) %>% 
                            left_join(spp.pcut, by=c("MgmtUnit", "SppGrp")) %>%
-                                       left_join(spp.ccut.vol, by=c("MgmtUnit", "SppGrp"))
+                                       left_join(spp.pcut.vol, by=c("MgmtUnit", "SppGrp"))
   names(spp.track)[3:ncol(spp.track)] <- c("spp.ccut","spp.ccut.vol",
                                    "spp.pcut","spp.pcut.vol")
   ## Return the cell.id of the cut locations and the tracking info

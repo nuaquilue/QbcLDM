@@ -22,7 +22,7 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
   land.evenage <- filter(land2,  SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB")
                          & is.na(Exclus) & rndm<=0.05) 
   land.unevenage <- filter(land2,  SppGrp %in% c("BOJ", "ERS", "OthDT") 
-                           & is.na(Exclus) & rndm<=0.95) 
+                           & is.na(Exclus) & rndm>0.95) 
   land.uea <- rbind(land.evenage, land.unevenage)
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
@@ -64,7 +64,7 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
         # seulement pour la strate et l'UA courante
         land.uea2 <- land.uea[land.uea$MgmtUnit==unit &land.uea$AgeMatuPC == age.mat.stra,]
         land.uea2$Age <- land.uea2$AgeMatu
-        vol.max.uea <- sum(volume(land.uea2,km2.pixel)$x)/2
+        vol.max.uea <- sum((volume.vec(land.uea2))*400)/2
         # volume maximal th?orique r?coltable par p?riode pour chaque strate
         recoltable2[j,] <- (vol.max.uea/(age.mat.stra/pc.step)) * (1:hor.plan)   
         # on revient ? l'?ge initial pour les calculs subs?quents
@@ -72,7 +72,9 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
         # Determine the period when maturity will be reached for the different age classes
         for (per in 0:(hor.plan-1)) {
                     # on calcule le volume des peuplements matures 
-          vol.act <- sum(volume(land.uea2[land.uea2$TSPCut>=land.uea2$AgeMatuPC,],km2.pixel)$x)/2
+        # vol.act <- sum(volume(land.uea2[land.uea2$TSPCut>=land.uea2$AgeMatuPC,],km2.pixel)$x)/2
+          vol.act <- sum((volume.vec(land.uea2[land.uea2$TSPCut>=land.uea2$AgeMatuPC,]))*400)/2
+          
           recoltable[j,per+1] <- vol.act
           # pour chaque p?riode, on update l'?ge des peuplements pour la p?riopde suivante
           land.uea2$TSPCut <- land.uea2$TSPCut + pc.step
@@ -101,5 +103,5 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
   write.table(n.pc.cells, 
               file = paste0(out.path, "/InitialVolumePC.txt"),
               quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)
-  
+  return(n.pc.cells)
 }

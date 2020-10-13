@@ -85,16 +85,17 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
       # VOLUME: ON ASSUME QUE LES PEUPLEMENTS SONT EXACTEMENT ? MATURIT?
       land.ea2 <- land.ea[land.ea$AgeMatu == age.mat.stra,]
       land.ea2$Age <- land.ea2$AgeMatu
-      vol.max <- sum(volume(land.ea2,km2.pixel)$x)
+      vol.max <- sum(volume.vec(land.ea2))*400
+      
       recoltable2[j,] <- vol.max/(age.mat.stra/5) * (1:hor.plan)   
       # on revient ? l'?ge initial pour les calculs subs?quents
       land.ea2 <- land.ea[land.ea$AgeMatu == age.mat.stra,]
       # Determine the period when maturity will be reached for the different age classes
       for (per in 0:(hor.plan-1)) {# per=0  
-              # on calcule le volume des peuplements matures 
-        vol.act <- sum(volume(land.ea2[land.ea2$Age>=land.ea2$AgeMatu,],km2.pixel)$x)
+        # on calcule le volume des peuplements matures 
+        vol.act <- sum(volume.vec(land.ea2[land.ea2$Age>=land.ea2$AgeMatu,]))*400
         recoltable[j,per+1] <- vol.act
-      # pour chaque p?riode, on update l'?ge des peuplements pour la p?riopde suivante
+      # pour chaque periode, on update l'?ge des peuplements pour la p?riopde suivante
         land.ea2$Age <- land.ea2$Age + 5
       } 
 
@@ -113,6 +114,6 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
   write.table(initial.volume, 
               file = paste0(out.path, "/InitialVolume.txt"),
               quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)
-
+  return(initial.volume)
   
 }
