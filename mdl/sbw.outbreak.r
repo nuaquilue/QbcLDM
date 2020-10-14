@@ -62,7 +62,7 @@ table(land$kill)
                                                         ifelse(prob<0.6,4,
                                                                ifelse(prob<0.8,5,6))))))
   image(MASK,col=c("grey","pink","pink","pink","red","red","red"))
-  print(paste(t,table(as.data.frame(MASK))))
+  #print(paste(t,table(as.data.frame(MASK))))
   
   
   print(paste("clim - ",mean(sbw.clim)))

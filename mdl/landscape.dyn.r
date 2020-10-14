@@ -33,7 +33,8 @@ landscape.dyn <- function(scn.name){
   source("mdl/timber.partial.volume.r") 
   source("mdl/timber2.r") 
   source("mdl/timber.volume.r") 
-  source("mdl/buffer.mig.r")            
+  source("mdl/buffer.mig.r")   
+  source("mdl/buffer.mig4.r") 
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/fuel.type.r")  
@@ -292,34 +293,49 @@ landscape.dyn <- function(scn.name){
       ## Natural regeneration of forest after disturbance depends on the nature of the disturbance, 
       ## the age of the stand at the time the disturbance occurred, and the environmental suitability
       ## according to climate and soils. Compute it:
-      suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
+      suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal)
       
-      
+      require (reshape)
       ## Regeneration after fire
-      buffer <- buffer.mig(land, burnt.cells, potential.spp)
+      if(length(burnt.cells)>0) {
+      target.cells <- land[land$cell.id %in% burnt.cells, c("cell.id", "x", "y")]
+      buffer <- buffer.mig4(land, target.cells, potential.spp)
+      #buffer <- buffer.mig(land, burnt.cells, potential.spp)
       land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(land, burnt.cells, post.fire.reg, buffer, 
                  suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
-      
+      }
 
       ## Regeneration after sbw outbreak
-      buffer <- buffer.mig(land, kill.cells, potential.spp)
+      if(length(kill.cells)>0) {
+      target.cells <- land[land$cell.id %in% kill.cells, c("cell.id", "x", "y")]
+      buffer <- buffer.mig4(land, target.cells, potential.spp)
+#     buffer <- buffer.mig(land, kill.cells, potential.spp)
       land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(land, kill.cells, post.sbw.reg, buffer, 
                  suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
-      
-      
+              
+      }
+
       ##  Regeneration after clear-cutting
-      buffer <- buffer.mig(land, cc.cells, potential.spp)
+      if(length(cc.cells)>0) {
+      target.cells <- land[land$cell.id %in% cc.cells, c("cell.id", "x", "y")]
+      buffer <- buffer.mig4(land, target.cells, potential.spp)
+#     buffer <- system.time(buffer.mig(land, cc.cells, potential.spp))
       land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(land, cc.cells,post.harvest.reg, buffer, 
                   suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
-      
+      }
       
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
 
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
-        buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
-        land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
+        if(length(unlist(chg.comp.cells))>0) {
+          target.cells <- land[land$cell.id %in% unlist(chg.comp.cells), c("cell.id", "x", "y")]
+          buffer <- buffer.mig4(land, target.cells, potential.spp)
+  #       buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
+          land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
             forest.trans(land, unlist(chg.comp.cells), forest.succ, buffer, 
-                         suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)
+                         suitab, potential.spp, dtype="S", p.failure, age.seed, suboptimal, enfeuil)          
+        }
+
         ## Before August 2020
         ## For those cells that change composition, reset Age at X years before maturity
         ## to account for the fact that a major change in species dominance is

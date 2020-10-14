@@ -8,9 +8,9 @@ rm(list = ls())
 
 # Set the working directory 
 
-setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+#setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
 
-#setwd("C:/Users/boumav/Desktop/QbcLDM")
+setwd("C:/Users/boumav/Desktop/QbcLDM")
 
 
 # Load the model
@@ -32,14 +32,14 @@ fun <- unclass(lsf.str())
 toremove <- setdiff(ls(), fun)
 rm(list = c(toremove, 'toremove'))
 # Create a scenario with customized parameters
-scn.name <- "test2"
+scn.name <- "test1"
 define.scenario(scn.name)
 # New parameters values 
 nrun <- 1
-processes <- c(F, F , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
+processes <- c(T, T , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
 # climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
 #is.climate.change <- 0
-clim.scn <- 45
+clim.scn <- NA #45
 
 time.horizon <- 90 # starting in 2010, stable after 2100
 fire.rate.increase <- 0.005 # rate of increase per year 
@@ -55,7 +55,7 @@ enfeuil=0.7 # Corresponds to the proportion of black spruce stands that will be 
             # after fire (plantation), in order to reduce the fire risk
 salvage.rate.FMU <- 0.7  # maximum proportion of mature burned stands that will be salvaged when burned
 write.sp.outputs <- 0
-enable.succ <- 0
+enable.succ <- 1
 #timber.supply <- "area.based"
 
 # Write the name of any updated parameter in the following call
