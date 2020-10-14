@@ -32,13 +32,14 @@ fun <- unclass(lsf.str())
 toremove <- setdiff(ls(), fun)
 rm(list = c(toremove, 'toremove'))
 # Create a scenario with customized parameters
-scn.name <- "test1"
+scn.name <- "test2"
 define.scenario(scn.name)
 # New parameters values 
 nrun <- 1
-processes <- c(TRUE, FALSE , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
+processes <- c(F, F , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
 # climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
 #is.climate.change <- 0
+clim.scn <- 45
 
 time.horizon <- 90 # starting in 2010, stable after 2100
 fire.rate.increase <- 0.005 # rate of increase per year 
@@ -58,7 +59,7 @@ enable.succ <- 0
 #timber.supply <- "area.based"
 
 # Write the name of any updated parameter in the following call
-dump(c("processes", "time.horizon",
+dump(c("processes", "time.horizon","clim.scn",
        "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","write.sp.outputs",
        "enable.succ","target.old.pct"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))

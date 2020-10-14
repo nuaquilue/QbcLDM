@@ -65,8 +65,8 @@ landscape.dyn <- function(scn.name){
   ## Load temperature and precipitation 5-year predictions according to the climatic scenario.
   ## If climate change is not activated, initial temp and precip will be used for the whole simulation.
   if(!is.na(clim.scn)){
-    load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_ModCan.rdata")) 
-    load(file=paste0("inputlyrs/rdata/precip_", clim.scn, "_ModCan.rdata"))  
+    load(file=paste0("inputlyrs/rdata/temp", clim.scn, "_ModCan.rdata")) 
+    load(file=paste0("inputlyrs/rdata/precip", clim.scn, "_ModCan.rdata"))  
   }
   
 
@@ -115,11 +115,12 @@ landscape.dyn <- function(scn.name){
     fire.schedule <- seq(0, time.horizon, fire.step)
     cc.schedule <- seq(0, time.horizon, cc.step)
     pc.schedule <- seq(0, time.horizon, pc.step)
-    if(sbw.step.fix) {
-      sbw.schedule <- seq(sbw.step, time.horizon, sbw.step)
-    }    else {
-            sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
-    }
+    sbw.schedule <- c(0,35,70)
+    #if(sbw.step.fix) {
+    #  sbw.schedule <- seq(sbw.step, time.horizon, sbw.step)
+    #}    else {
+    #        sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
+    #}
 
 
     
@@ -154,6 +155,7 @@ landscape.dyn <- function(scn.name){
     land$TSSBW <- 100
     land$TSCC <- land$Age
     land$TSPCut <- land$Age - (land$AgeMatu/2)
+    
     # determiner le regime de coupe - even aged (1), uneven aged(0), autres(2)
     land <- mutate(land, rndm=runif(nrow(land)))
     land$even <-2
@@ -173,7 +175,7 @@ landscape.dyn <- function(scn.name){
       ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
       ## The last column (temp19) then corresponds to the period 2095-2100
       ## The first time step (t=0) we start at 2010, so the first column to start with is column 4
-      if(!is.na(clim.scn)){
+      if(!is.na(clim.scn) & t < 90){
         aux <- cc.temp[,c(1,3+which(time.seq==t))]
         names(aux) <- c("cell.id", "Temp")
         land <- select(land, -Temp) %>% left_join(aux, by="cell.id")
@@ -207,6 +209,7 @@ landscape.dyn <- function(scn.name){
       if(processes[sbw.id] & t %in% sbw.schedule){
         kill.cells <- sbw.outbreak(land, severity=1, km2.pixel)
         # Done with outbreak
+        land$TSSBW[land$cell.id %in% kill.cells] <- 0
         land$TSDist[land$cell.id %in% kill.cells] <- 0
         land$DistType[land$cell.id %in% kill.cells] <- sbw.id
         sbw.schedule <- sbw.schedule[-1]
