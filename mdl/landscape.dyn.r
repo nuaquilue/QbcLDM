@@ -191,7 +191,7 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
         fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, baseline.fuel, 
-                              fuel.types.modif, pigni.opt, km2.pixel, t)
+                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))

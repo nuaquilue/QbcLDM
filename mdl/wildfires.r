@@ -22,7 +22,7 @@
 
 
 wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
-                      fuel.types.modif, pigni.opt, km2.pixel, t){
+                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire){
   
   cat("Wildfires", "\n" )
   
@@ -76,7 +76,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
     
     ## Determine annual area burnt per zone, but considering fire rate increase with time 
     baseline.area <- time.step*sum(land$FRZone==izone)/fire.regime$fri[fire.regime$zone==izone]
-    if(t>0){
+    if(t>0 & increase.fire){
       for(j in seq(time.step, t, time.step)){
         if(j<=25)
           rate <- fire.regime$rate40[fire.regime$zone==izone]

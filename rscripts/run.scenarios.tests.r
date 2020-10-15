@@ -35,11 +35,11 @@ rm(list = c(toremove, 'toremove'))
 scn.name <- "test1"
 define.scenario(scn.name)
 # New parameters values 
-nrun <- 1
-processes <- c(T, T , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
+nrun <- 20
+processes <- c(T, FALSE , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
 # climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
 #is.climate.change <- 0
-clim.scn <- NA #45
+clim.scn <- 45
 
 time.horizon <- 90 # starting in 2010, stable after 2100
 fire.rate.increase <- 0.005 # rate of increase per year 
@@ -56,12 +56,13 @@ enfeuil=0.7 # Corresponds to the proportion of black spruce stands that will be 
 salvage.rate.FMU <- 0.7  # maximum proportion of mature burned stands that will be salvaged when burned
 write.sp.outputs <- 0
 enable.succ <- 1
+increase.fire <- 0 # if 0, remains stable
 #timber.supply <- "area.based"
 
 # Write the name of any updated parameter in the following call
 dump(c("processes", "time.horizon","clim.scn",
        "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","write.sp.outputs",
-       "enable.succ","target.old.pct"), 
+       "enable.succ","target.old.pct","increase.fire"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 # Run this scenario (count the time it takes)
 system.time(landscape.dyn(scn.name))

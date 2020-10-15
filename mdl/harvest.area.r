@@ -187,12 +187,13 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
 
   
     poss.cp.ua <- harv.level.pc$x[harv.level.pc$MgmtUnit==unit]
+    poss.cp.ua <- ifelse(length(poss.cp.ua) == 0,0,poss.cp.ua)
     cell.dispo.ua <- land.rec.pc[land.rec.pc$MgmtUnit==unit, ]
     x <- length(cell.dispo.ua$cell.id ) #disponible
     pc.cells.ua <- numeric(0)
     xx <- 0
     #  arrête la récolte lorsqu'on est rendu à < 20000m3 du but, il y aura parfois des dépassements
-    while(x > 0 & length(cell.dispo.ua$cell.id)>0 & xx < (poss.cp.ua) ) {
+    while(x > 0 & length(cell.dispo.ua$cell.id)>0 & xx < (poss.cp.ua)) {
       paquet <- ifelse(poss.cp.ua-xx >= 0 ,min(x,poss.cp.ua-xx) ,0 )
       pc.cells.ua.x <- sample( cell.dispo.ua$cell.id, paquet)
       pc.cells.ua   <- c(pc.cells.ua,pc.cells.ua.x)
