@@ -21,6 +21,7 @@
           # prob.reg <- post.fire.reg
 #          subland  <- filter(land, cell.id %in% cc.cells)
 #          prob.reg <- post.harvest.reg
+#  dtype = "C"
 
 forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){

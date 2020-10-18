@@ -191,7 +191,7 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
         fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, baseline.fuel, 
-                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire)
+                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire, feu.stable)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
@@ -324,6 +324,21 @@ landscape.dyn <- function(scn.name){
                   suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
       }
       
+      #######
+      # job
+      territ <- !is.na(land$MgmtUnit)
+      job1 <- initial.forest.comp[territ] %in% c("SAB","EPN") & land$SppGrp[territ] %in% c("PET","BOJ","ERS") 
+      job2 <- initial.forest.comp[territ] %in% c("PET","BOJ","ERS") & land$SppGrp[territ] %in% c("SAB","EPN")
+      print(c(sum(job1),sum(job2))) 
+      job1b <- job1[land$MgmtUnit[territ] == "2751"]
+      job2b <- job2[land$MgmtUnit[territ] == "2751"]
+      print(c(sum(job1b),sum(job2b))) 
+      
+      table(initial.forest.comp)
+      table(land$SppGrp)
+      
+      #land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")] 
+      
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
 
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
@@ -354,8 +369,8 @@ landscape.dyn <- function(scn.name){
       land$Age[land$cell.id %in% cc.cells] <- 0
       
       land$TSPCut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)
-
       
+
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
       land$Age <- land$Age + time.step
       land$TSDist <- land$TSDist + time.step

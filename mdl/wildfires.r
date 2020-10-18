@@ -22,7 +22,7 @@
 
 
 wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
-                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire){
+                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire,feu.stable){
   
   cat("Wildfires", "\n" )
   
@@ -33,6 +33,10 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   fire.regime <- read.table(file.fire.regime, header = T)
   fire.sizes <- read.table(file.fire.sizes, header = T)
   
+  # job feu.stable = 1
+  if (feu.stable) {fire.regime[,4:6] <- 0  }
+  
+    
   ## Generate random probability of ignition or load static pigni
   if(pigni.opt=="rand"){
     pigni <- data.frame(cell.id=land$cell.id, frz=land$FRZone)
