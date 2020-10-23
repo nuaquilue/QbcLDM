@@ -82,8 +82,7 @@ landscape.dyn <- function(scn.name){
   ## 2. The distribution of Ages Class per domain
   ## 3. The area affected by the disturbances in each Biolcimatic Domain
   track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
-  track.spp.age.class <- data.frame(run=NA, year=NA, BCDomain=NA, SppGrp=NA, 
-                                    C20=NA, C40=NA, C60=NA, C80=NA, C100=NA, Old=NA)
+  track.spp.age.class <- data.frame(run=NA, year=NA, MgmtUnit=NA, SppGrp=NA, AgeClass=NA, n=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
   track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
@@ -128,11 +127,17 @@ landscape.dyn <- function(scn.name){
     ## Record initial species distribution per fire zone, and distribution of age classes per BCDomain
     track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=0, 
                               group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
+    breaks <- c(0,20,40,60,80,100,999)
+    tags <- c("C10","C30", "C50", "C70", "C90", "OLD")
+    land$AgeClass <- cut(land$Age, 
+                      breaks=breaks, 
+                      include.lowest=TRUE, 
+                      right=TRUE, labels=tags)
     track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=0, 
-                              group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
-                              C40=sum(Age<=40)*km2.pixel, C60=sum(Age<=60)*km2.pixel, C80=sum(Age<=80)*km2.pixel, 
-                              C100=sum(Age<=100)*km2.pixel, Old=sum(Age>100)*km2.pixel)))
-    
+                              group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass))) #MgmtUnit 
+ 
+
+
     
     ## Record initial suitability classes per BCDomain 
     suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
@@ -166,7 +171,7 @@ landscape.dyn <- function(scn.name){
     land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm<=0.95] <- 0    
 
     ## Start 
-    t <- 0
+    t <- 0  #t<-5
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
@@ -191,7 +196,7 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
         fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, baseline.fuel, 
-                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire, feu.stable)
+                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
@@ -256,7 +261,8 @@ landscape.dyn <- function(scn.name){
           # Done with clear cuts
           land$TSDist[land$cell.id %in% cc.cells] <- 0
           #land$TSDist[land$cell.id %in% pc.cells] <- 0
-          land$TSPcut[land$cell.id %in% pc.cells] <- 0
+          land$TSPCut[land$cell.id %in% pc.cells] <- 0
+          land$TSCC[land$cell.id %in% cc.cells] <- 0
           land$DistType[land$cell.id %in% cc.cells] <- cc.id
           land$DistType[land$cell.id %in% pc.cells] <- pc.id
           cc.schedule <- cc.schedule[-1]  
@@ -267,7 +273,7 @@ landscape.dyn <- function(scn.name){
           #source("mdl/harvest.area.r")
           cc.cells <- integer()
           harv.out <- harvest.area(land, cc.step, diff.prematurite, hor.plan, TS.CC.area,TS.PC.area,salvage.rate.FMU,
-                          salvage.rate.event, harv.level, km2.pixel, t)
+                          salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed)
           cc.cells <- harv.out[[1]]
           pc.cells <- harv.out[[2]]
           if(nrow(harv.out[[3]])>0){
@@ -277,7 +283,8 @@ landscape.dyn <- function(scn.name){
           # Done with clear cuts
           land$TSDist[land$cell.id %in% cc.cells] <- 0
           #land$TSDist[land$cell.id %in% pc.cells] <- 0
-          land$TSPcut[land$cell.id %in% pc.cells] <- 0
+          land$TSPCut[land$cell.id %in% pc.cells] <- 0
+          land$TSCC[land$cell.id %in% cc.cells] <- 0
           land$DistType[land$cell.id %in% cc.cells] <- cc.id
           land$DistType[land$cell.id %in% pc.cells] <- pc.id
           cc.schedule <- cc.schedule[-1]  
@@ -334,11 +341,8 @@ landscape.dyn <- function(scn.name){
       job2b <- job2[land$MgmtUnit[territ] == "2751"]
       print(c(sum(job1b),sum(job2b))) 
       
-      table(initial.forest.comp)
-      table(land$SppGrp)
-      
-      #land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")] 
-      
+      if(lutte ==1) {land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")]}
+      #
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
 
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
@@ -382,10 +386,12 @@ landscape.dyn <- function(scn.name){
       ##################################### TRACKING AND SPATIAL OUTS #####################################
       track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=t+year.ini, 
                                 group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
+      land$AgeClass <- cut(land$Age, 
+                           breaks=breaks, 
+                           include.lowest=TRUE, 
+                           right=TRUE, labels=tags)
       track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=t+year.ini, 
-                                  group_by(land, BCDomain, SppGrp) %>% summarize(C20=sum(Age<=20)*km2.pixel, 
-                                  C40=sum(Age<=40 & Age >20 )*km2.pixel, C60=sum(Age<=60 & Age >40)*km2.pixel, C80=sum(Age<=80 & Age >60)*km2.pixel, 
-                                  C100=sum(Age<=100 & Age >80)*km2.pixel, Old=sum(Age>100)*km2.pixel)))
+                                                                   group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass)))
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
               group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 

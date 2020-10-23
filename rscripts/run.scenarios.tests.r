@@ -8,9 +8,9 @@ rm(list = ls())
 
 # Set the working directory 
 
-setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+#setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
 
-#setwd("C:/Users/boumav/Desktop/QbcLDM")
+setwd("C:/Users/boumav/Desktop/QbcLDM")
 
 
 # Load the model
@@ -33,7 +33,7 @@ scn.name <- "job1"
 define.scenario(scn.name)
 # New parameters values 
 nrun <- 1
-processes <- c(T, F , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
+processes <- c(F, F , TRUE, TRUE)  # feux, TBE, coupe totale, coupe partielle 
 # climat change: si 0, climat stable. Si 45, scen 4.5. Autres, 8.5
 #is.climate.change <- 0
 clim.scn <- 45
@@ -53,14 +53,18 @@ enfeuil=0 # Corresponds to the proportion of black spruce stands that will be co
 salvage.rate.FMU <- 0.7  # maximum proportion of mature burned stands that will be salvaged when burned
 write.sp.outputs <- 0
 enable.succ <- 1
-increase.fire <- 0 # if 0, remains stable
+increase.fire <- 1 # if 0, remains stable
 feu.stable <- 0
+p.failure <- 0.7
+lutte <- 0 # 1 = reboisement systématique des peuplements conifériens qui deviennent feuillus
+           # suite a une perturbation
+diff.prematurite = 0
 #timber.supply <- "area.based"
 
 # Write the name of any updated parameter in the following call
 dump(c("processes", "time.horizon","clim.scn",
        "nrun","fire.rate.increase","a.priori","salvage.rate.FMU","replanif","persist","avec.combu","write.sp.outputs",
-       "enable.succ","target.old.pct","increase.fire","feu.stable","enfeuil"), 
+       "enable.succ","target.old.pct","increase.fire","feu.stable","enfeuil","lutte","p.failure","diff.prematurite"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 # Run this scenario (count the time it takes)
 system.time(landscape.dyn(scn.name))

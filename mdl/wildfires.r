@@ -22,7 +22,7 @@
 
 
 wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
-                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire,feu.stable){
+                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire){
   
   cat("Wildfires", "\n" )
   
@@ -34,7 +34,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   fire.sizes <- read.table(file.fire.sizes, header = T)
   
   # job feu.stable = 1
-  if (feu.stable) {fire.regime[,4:6] <- 0  }
+  #if (feu.stable) {fire.regime[,4:6] <- 0  }
   
     
   ## Generate random probability of ignition or load static pigni
@@ -60,7 +60,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   fuels <- fuel.type(land, fuel.types.modif, NA)
   current.fuels <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
   modif.fuels <- current.fuels
-  modif.fuels$x <- 1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
+  modif.fuels$x <-  1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
   
   ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
   fr.zones <- sample(LETTERS[1:8], 8, replace=FALSE)   

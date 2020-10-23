@@ -30,7 +30,7 @@
 ######################################################################################
 
 harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS.PC.area, salvage.rate.FMU,
-                      salvage.rate.event, harv.level, km2.pixel, t){  
+                      salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed){  
 
    
   #harv.level <- ref.harv.level
@@ -60,10 +60,10 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   
   ## Also, look for zones at defforestation risk, both included and excluded
   reg.fail.ex <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                        TSF==0, Age<=50, !is.na(Exclus)) %>%
+                        TSF==0, Age<=age.seed, Temp < 1.5, runif(length(land2$Temp))<p.failure, !is.na(Exclus)) %>%
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   reg.fail.inc <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                         TSF==0, Age<=50, is.na(Exclus)) %>%
+                         TSF==0, Age<=age.seed, Temp < 1.5, runif(length(land2$Temp))<p.failure, is.na(Exclus)) %>%
                           group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
 
   
@@ -101,6 +101,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
 
     subland.salv.mature.burn <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & 
                                              land.ea.u$TSF ==0, ]
+    # table(land.ea.u$TSF)
     liste.recuperables.FMU <- sample(subland.salv.mature.burn$cell.id, round(salvage.rate.FMU*nrow(subland.salv.mature.burn)))
 
     subland.salv.mature.burn2 <- subland.salv.mature.burn[subland.salv.mature.burn$cell.id %in% liste.recuperables.FMU,]
@@ -142,6 +143,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
     # forests unaffected by disturbances (cc.cells.unaff).
 
     subland.non.pertu <- land.ea.mat.u[land.ea.mat.u$TSF!=0, ]
+
     x <- length(subland.non.pertu$cell.id ) # x = disponible
     cc.cells.unaff <- numeric(0)
     #  arrête la récolte lorsqu'on est rendu à < 40000m3 du but, il y aura parfois des dépassements
