@@ -39,7 +39,7 @@ landscape.dyn <- function(scn.name){
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
   source("mdl/fuel.type.r")  
-  source("mdl/select.others.r")
+  source("mdl/select.others2.r")
   source("mdl/volume.vec.r")  
   tic("  t")
   options(warn=-1)
