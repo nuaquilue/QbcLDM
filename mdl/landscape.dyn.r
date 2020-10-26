@@ -3,7 +3,7 @@
 ###
 ###  Description > Runs the Landscape Dynamics Model. 
 ###
-###  Arguments >  
+###  Arguments >   
 ###
 ###  Details > The landscape-level processes are fire, clear-cuts and partial-cuts
 ###            Post-disturbance regeneration and forest succession are based on 
@@ -23,6 +23,7 @@ landscape.dyn <- function(scn.name){
     library(dplyr)
     library(tidyverse)
     options(dplyr.summarise.inform = FALSE)
+    require (reshape)
   })
   source("mdl/wildfires.r")
   source("mdl/sbw.outbreak.r") 
@@ -133,7 +134,7 @@ landscape.dyn <- function(scn.name){
                       breaks=breaks, 
                       include.lowest=TRUE, 
                       right=TRUE, labels=tags)
-    track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=0, 
+    track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=year.ini-5, 
                               group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass))) #MgmtUnit 
  
 
@@ -302,21 +303,16 @@ landscape.dyn <- function(scn.name){
       ## according to climate and soils. Compute it:
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal)
       
-      require (reshape)
       ## Regeneration after fire
       if(length(burnt.cells)>0) {
-      target.cells <- land[land$cell.id %in% burnt.cells, c("cell.id", "x", "y")]
-      buffer <- buffer.mig4(land, target.cells, potential.spp)
-      #buffer <- buffer.mig(land, burnt.cells, potential.spp)
+      buffer <- buffer.mig4(land, burnt.cells, potential.spp)
       land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(land, burnt.cells, post.fire.reg, buffer, 
                  suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
       }
 
       ## Regeneration after sbw outbreak
       if(length(kill.cells)>0) {
-      target.cells <- land[land$cell.id %in% kill.cells, c("cell.id", "x", "y")]
-      buffer <- buffer.mig4(land, target.cells, potential.spp)
-#     buffer <- buffer.mig(land, kill.cells, potential.spp)
+      buffer <- buffer.mig4(land, kill.cells, potential.spp)
       land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(land, kill.cells, post.sbw.reg, buffer, 
                  suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
               
@@ -324,9 +320,7 @@ landscape.dyn <- function(scn.name){
 
       ##  Regeneration after clear-cutting
       if(length(cc.cells)>0) {
-      target.cells <- land[land$cell.id %in% cc.cells, c("cell.id", "x", "y")]
-      buffer <- buffer.mig4(land, target.cells, potential.spp)
-#     buffer <- system.time(buffer.mig(land, cc.cells, potential.spp))
+      buffer <- buffer.mig4(land, cc.cells, potential.spp)
       land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(land, cc.cells,post.harvest.reg, buffer, 
                   suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
       }
@@ -347,8 +341,8 @@ landscape.dyn <- function(scn.name){
 
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
         if(length(unlist(chg.comp.cells))>0) {
-          target.cells <- land[land$cell.id %in% unlist(chg.comp.cells), c("cell.id", "x", "y")]
-          buffer <- buffer.mig4(land, target.cells, potential.spp)
+  #        target.cells <- land[land$cell.id %in% unlist(chg.comp.cells), c("cell.id", "x", "y")]
+          buffer <- buffer.mig4(land, unlist(chg.comp.cells), potential.spp)
   #       buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
           land$SppGrp[land$cell.id %in% unlist(chg.comp.cells)] <- 
             forest.trans(land, unlist(chg.comp.cells), forest.succ, buffer, 
@@ -390,7 +384,7 @@ landscape.dyn <- function(scn.name){
                            breaks=breaks, 
                            include.lowest=TRUE, 
                            right=TRUE, labels=tags)
-      track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=t+year.ini, 
+      track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=(t)+year.ini, 
                                                                    group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass)))
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%

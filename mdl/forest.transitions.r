@@ -22,6 +22,7 @@
 #          subland  <- filter(land, cell.id %in% cc.cells)
 #          prob.reg <- post.harvest.reg
 #  dtype = "C"
+#   target.cells <- cc.cells
 
 forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){
@@ -79,7 +80,7 @@ forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential
   ## (under the assumption that competition is more limiting than  physiological response to climate)
   ## First, find which spp are allowed to persist then, upgrade climatic suitability to suboptimal
   ## in case this is lower than suboptimal.
-  spp.persist <- potential.spp$PotSpp[potential.spp$persist==0.1]
+  spp.persist <- potential.spp$spp[potential.spp$persist==1]
   subland$SuitClim[subland$SppGrp %in% spp.persist & 
                      subland$SppGrp == subland$PotSpp & subland$SuitClim<suboptimal] <- suboptimal
   

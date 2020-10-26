@@ -25,8 +25,11 @@
  # microland <- land[, c("cell.indx", "SppGrp", "x", "y","TSD","Tcomp")]
  # target.cells <- land[land$cell.id %in% burnt.cells, c("cell.indx", "x", "y")]
 
-buffer.mig4 <- function(microland, target.cells, potential.spp){
-
+buffer.mig4 <- function(microland, target.cells.mig, potential.spp){
+  
+  target.cells.mig.xy <- microland[microland$cell.id %in% target.cells.mig, c("cell.id", "x", "y")]
+  
+  
   radius.buff <- potential.spp[,2]
   nb.buff <- potential.spp[,3]
     
@@ -40,27 +43,27 @@ buffer.mig4 <- function(microland, target.cells, potential.spp){
   ### Calculate number of source populations in the neighbohood of each target cell. Colonization distances
   ### are species-specific.
   # PET
-  list.cell.buff <- nn2(micro.pet[,c("x","y")], target.cells[,c("x","y")], 
+  list.cell.buff <- nn2(micro.pet[,c("x","y")], target.cells.mig.xy[,c("x","y")], 
                         k=nb.buff[4] , searchtype='priority')
   nn.dists.pet <- list.cell.buff$nn.dists[, nb.buff[4]] < radius.buff[4]
   
   # BOJ   
-  list.cell.buff <- nn2(micro.boj[,c("x","y")], target.cells[,c("x","y")], 
+  list.cell.buff <- nn2(micro.boj[,c("x","y")], target.cells.mig.xy[,c("x","y")], 
                         k=nb.buff[1], searchtype='priority')
   nn.dists.boj <- list.cell.buff$nn.dists[,nb.buff[1]]< radius.buff[1]
 
   # ERS
-  list.cell.buff <- nn2(micro.ers[,c("x","y")], target.cells[,c("x","y")], 
+  list.cell.buff <- nn2(micro.ers[,c("x","y")], target.cells.mig.xy[,c("x","y")], 
                         k=nb.buff[3], searchtype='priority')
   nn.dists.ers <- list.cell.buff$nn.dists[,nb.buff[3]]< radius.buff[3]
   
   # SAB   
-  list.cell.buff <- nn2(micro.sab[,c("x","y")], target.cells[,c("x","y")], 
+  list.cell.buff <- nn2(micro.sab[,c("x","y")], target.cells.mig.xy[,c("x","y")], 
                         k=nb.buff[5],  searchtype='priority')
   nn.dists.sab <- list.cell.buff$nn.dists[,nb.buff[5]]< radius.buff[5]
   
   # EPN   
-  list.cell.buff <- nn2(micro.epn[,c("x","y")], target.cells[,c("x","y")], 
+  list.cell.buff <- nn2(micro.epn[,c("x","y")], target.cells.mig.xy[,c("x","y")], 
                         k=nb.buff[2],  searchtype='priority')
   nn.dists.epn <- list.cell.buff$nn.dists[,nb.buff[2]]< radius.buff[2]
   
@@ -68,7 +71,7 @@ buffer.mig4 <- function(microland, target.cells, potential.spp){
   # source populations of each species around each target cell. Currently set
   # at one in all scenarios, but could be modified.
   
-  target.df <- data.frame(target.cells, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, SAB=nn.dists.sab, 
+  target.df <- data.frame(target.cells.mig.xy, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, SAB=nn.dists.sab, 
                           EPN=nn.dists.epn, OTH=TRUE, NonFor=TRUE)
   target.df <- target.df[,-c(2,3)]  
   target.df <- melt(target.df,id=c("cell.id"))

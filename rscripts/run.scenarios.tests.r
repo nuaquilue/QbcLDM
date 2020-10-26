@@ -8,9 +8,9 @@ rm(list = ls())
 
 # Set the working directory 
 
-#setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
+setwd("C:/Users/Mathieu/Desktop/LDM/DevelopMB")
 
-setwd("C:/Users/boumav/Desktop/QbcLDM")
+#setwd("C:/Users/boumav/Desktop/QbcLDM")
 
 
 # Load the model
@@ -41,7 +41,7 @@ clim.scn <- 45
 time.horizon <- 90 # starting in 2010, stable after 2100
 fire.rate.increase <- 0.005 # rate of increase per year 
 a.priori <- 1  # 0.8 = baisse de 20% a priori - fonds de r?serve
-replanif <- 1  # when 1, timber supply calculation is done at each time step to readjust harvest level
+replanif <- 0  # when 1, timber supply calculation is done at each time step to readjust harvest level
 # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
 persist <- c(1,1,1,1,1) 
 target.old.pct <- 0.1 # minimum proportion of mature forest that are set apart 
@@ -68,3 +68,24 @@ dump(c("processes", "time.horizon","clim.scn",
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 # Run this scenario (count the time it takes)
 system.time(landscape.dyn(scn.name))
+
+
+# Graphiques superficie totale et volume récolté
+library(ggplot2)
+library(gridExtra)
+library(reshape)
+UAF <- 9351
+data <- read.table("outputs/job1/SppByAgeClass.txt", header=T)
+data1 <- data[!is.na(data$MgmtUnit) & data$MgmtUnit == UAF,]
+ x <-  aggregate(n ~ SppGrp + year, data=data1, sum)    
+plot1 <- ggplot(x, aes(x=year, y=n, fill=SppGrp)) + 
+     geom_area()
+
+data <- read.table("outputs/job1/ClearCutSpp.txt", header=T)
+data1 <- data[data$MgmtUnit == UAF,]
+x1 <- cast(data1, year~SppGrp, value="spp.ccut" , sum)
+x2 <- melt(x1, id=c("year"))
+plot2 <- ggplot(x2, aes(x=year, y=value, fill=SppGrp)) + 
+  geom_area()
+
+grid.arrange(plot1, plot2, ncol=2)

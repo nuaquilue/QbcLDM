@@ -132,7 +132,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
     
     while (x > 0 & length(cell.salv.available)>0 & xx < harv.level.u)    {
       paquet <- ifelse((x <= harv.level.u) ,x,harv.level.u ) # pour accélérer le calcul, paquets de 5 cellules
-      cc.cells.salv.x <- cell.salv.available[1:paquet]  #sample(cell.salv.available,1)
+      cc.cells.salv.x <- sample(cell.salv.available,paquet)#cell.salv.available[1:paquet]  #
       cc.cells.salv <- c(cc.cells.salv,cc.cells.salv.x)
       cell.salv.available <- cell.salv.available[-which(cell.salv.available%in%cc.cells.salv.x)]
       x <- sum(subland.salv.mature[subland.salv.mature$cell.id %in%cell.salv.available,]$vol )
@@ -262,6 +262,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
                                        left_join(spp.pcut.vol, by=c("MgmtUnit", "SppGrp"))
   names(spp.track)[3:ncol(spp.track)] <- c("spp.ccut","spp.ccut.vol",
                                    "spp.pcut","spp.pcut.vol")
+  spp.track[is.na(spp.track)] <- 0
   ## Return the cell.id of the cut locations and the tracking info
   return(list(cc.cells=cc.cells, pc.cells=pc.cells, track.cut=track, spp.track=spp.track))  
   
