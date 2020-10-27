@@ -91,6 +91,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
         baseline.area <-  baseline.area*(1+rate*time.step)  
       }
     }
+    
+    # random inter-period variability 
     target.area <- round(rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)) #in km2
 #   target.size <- round(target.area/km2.pixel)
     

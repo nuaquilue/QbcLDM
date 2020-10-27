@@ -34,7 +34,6 @@ landscape.dyn <- function(scn.name){
   source("mdl/timber.partial.volume.r") 
   source("mdl/timber2.r") 
   source("mdl/timber.volume.r") 
-  source("mdl/buffer.mig.r")   
   source("mdl/buffer.mig4.r") 
   source("mdl/forest.transitions.r")  
   source("mdl/suitability.r") 
@@ -326,16 +325,18 @@ landscape.dyn <- function(scn.name){
       }
       
       #######
-      # job
-      territ <- !is.na(land$MgmtUnit)
-      job1 <- initial.forest.comp[territ] %in% c("SAB","EPN") & land$SppGrp[territ] %in% c("PET","BOJ","ERS") 
-      job2 <- initial.forest.comp[territ] %in% c("PET","BOJ","ERS") & land$SppGrp[territ] %in% c("SAB","EPN")
-      print(c(sum(job1),sum(job2))) 
-      job1b <- job1[land$MgmtUnit[territ] == "2751"]
-      job2b <- job2[land$MgmtUnit[territ] == "2751"]
-      print(c(sum(job1b),sum(job2b))) 
-      
-      if(lutte ==1) {land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")]}
+      # maintien forcé de la composition forestière (plantation)
+      if(lutte ==1) {
+        territ <- !is.na(land$MgmtUnit) 
+        # superficie qui passe de feu à res et l'inverse
+        plant.1 <- initial.forest.comp[territ] %in% c("SAB","EPN") & land$SppGrp[territ] %in% c("PET","BOJ","ERS") 
+        plant.2 <- initial.forest.comp[territ] %in% c("PET","BOJ","ERS") & land$SppGrp[territ] %in% c("SAB","EPN")
+        #print(c(sum(plant.1),sum(plant.2)))
+        plant.1a <- plant.1[land$MgmtUnit[territ] == "2751"]
+        plant.2a <- plant.2[land$MgmtUnit[territ] == "2751"]
+        #print(c(sum(job1b),sum(job2b))) 
+        land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")]
+        }
       #
       ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
 

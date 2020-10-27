@@ -82,6 +82,8 @@ define.scenario <- function(scn.name){
   replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
                  # once, during the first period
   timber.supply <- "area.based"
+  lutte <- 0 # 1 = reboisement systématique des peuplements conifériens qui deviennent feuillus
+             # suite a une perturbation
   
   
   ## VEGETATION DYNAMICS parameters:

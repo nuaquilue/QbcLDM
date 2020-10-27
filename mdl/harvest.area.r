@@ -36,7 +36,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   #harv.level <- ref.harv.level
   cat("Select clearcut and partial cut cells - area based", "\n" )
   
-  land2 <- land[!is.na(land$MgmtUnit),]
+  land2 <- land[!is.na(land$MgmtUnit) & !land$SppGrp=="NonFor",]
   land2$vol <- (volume.vec(land2)*km2.pixel*100)
  # land2 <- land2[order(-land2$vol),]
 
@@ -87,12 +87,13 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   # initialisation des variables
   cc.cells.salv.tot <- cc.cells.unaff.tot <- cc.cells <- numeric(0)
   
-  unit=2371 #units[18] # for testing
+  unit=2571 #units[18] # for testing
   for(unit in units){
     #harv.level.u <- harv.level[harv.level$MgmtUnit == as.numeric(unit),2]
     harv.level.u <- poss.init[poss.init$MgmtUnit == as.numeric(unit),2]
     
     land.ea.u <- land.ea[land.ea$MgmtUnit==unit,]
+
     
     s.ea.u <- length(land.ea.u$cell.id)  
     
@@ -106,6 +107,9 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
 
     subland.salv.mature.burn2 <- subland.salv.mature.burn[subland.salv.mature.burn$cell.id %in% liste.recuperables.FMU,]
 
+    
+
+    
     if(length(subland.salv.mature.burn2$cell.id) > round(salvage.rate.event* harv.level.u)) {
           liste.2 <- sample(subland.salv.mature.burn2$cell.id,round((salvage.rate.event* harv.level.u)), replace=FALSE)
            subland.salv.mature.burn3 <- subland.salv.mature.burn2[subland.salv.mature.burn2$cell.id %in% liste.2,]
@@ -120,7 +124,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
     # sélection de cellules récupérables en tenant compte
     # des contraintes a priori (maximum salvage rate, etc.)
     cell.salv.available <- subland.salv.mature$cell.id #sample(subland.salv.mature$cell.id, round(salvage.rate.event*nrow(subland.salv.mature)), replace=FALSE)
-        
+    #table(subland.salv.mature$SppGrp)        
      
     #############################################
     # Randomly select cells among the even-aged mature cells present in non-protected areas
