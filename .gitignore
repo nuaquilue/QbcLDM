@@ -5,8 +5,8 @@
 *.Rproj
 *.docx
 outputs/
-inputlyrs/asc
 notes/
 mdl/old
 inputfiles/old
 inputfiles/invented
+developMB
