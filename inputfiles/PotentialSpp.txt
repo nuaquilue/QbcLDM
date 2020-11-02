@@ -1,0 +1,6 @@
+spp	rad	nneigh	persist
+BOJ	60000	1	1
+EPN	50000	1	1
+ERS	50000	1	1
+PET	75000	1	1
+SAB	50000	1	1

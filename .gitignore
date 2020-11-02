@@ -2,5 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+<<<<<<< HEAD
 outputs/
 rscripts/.Rhistory
+=======
+outputs
+>>>>>>> developMB
