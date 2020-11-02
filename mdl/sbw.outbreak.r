@@ -36,13 +36,8 @@ sbw.outbreak<- function(land, severity, km2.pixel){
   sbw.age  <- ifelse(land$TSD > 60 & land$TSF !=0  , 1, 
                              ifelse(land$TSD > 30 & land$TSF !=0, 0.8, 0.6))
   # three compositions, defined in the highly favorable zone: fir (0.5), EPN (0.15), others (0)
-<<<<<<< HEAD:mdl/disturbance.sbw.r
-  sbw.comp <- ifelse(subland$SppGrp == "SAB", 0.4, 
-                            ifelse(subland$SppGrp =="EPN", 0.05, 0))  
-=======
   sbw.comp <- ifelse(land$SppGrp == "SAB", 0.4, 
                             ifelse(land$SppGrp =="EPN", 0.05, 0))  
->>>>>>> developMB:mdl/sbw.outbreak.r
 
   prob <- sbw.clim*sbw.age * sbw.comp #* (severity) 
 table(land$kill)
@@ -60,16 +55,6 @@ table(land$kill)
 #                sep="\t", row.names=F , col.names=out.overwrite)
 #  }
 
-<<<<<<< HEAD:mdl/disturbance.sbw.r
-#  load(file=paste0("inputlyrs/rdata/mask", name.resol, ".rdata"))
-#   MASK[!is.na(MASK)] <- as.factor(ifelse(prob==0, 1,
-#                                         ifelse (prob<0.2,2,
-#                                                 ifelse(prob<0.4,3,
-#                                                        ifelse(prob<0.6,4,
-#                                                               ifelse(prob<0.8,5,6))))))
-#  image(MASK,col=c("grey","pink","pink","pink","red","red","red"))
-#  print(paste(t,table(as.data.frame(MASK))))
-=======
   load(file=paste0("inputlyrs/rdata/mask.rdata"))
    MASK[!is.na(MASK)] <- as.factor(ifelse(prob==0, 1,
                                          ifelse (prob<0.2,2,
@@ -78,7 +63,6 @@ table(land$kill)
                                                                ifelse(prob<0.8,5,6))))))
   #image(MASK,col=c("grey","pink","pink","pink","red","red","red"))
   #print(paste(t,table(as.data.frame(MASK))))
->>>>>>> developMB:mdl/sbw.outbreak.r
   
   
   print(paste("clim - ",mean(sbw.clim)))

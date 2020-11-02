@@ -19,26 +19,18 @@
 ###           of the species in the neighbourhood (one per column)
 ######################################################################################
 
-<<<<<<< HEAD
-neighour.spp <- function(microland, target.cells, radius.neigh, km2.pixel){
-=======
 #target.cells = land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")]
 #radius.neigh=10000
 neighour.spp <- function(land, target.cells, radius.neigh, km2.pixel){
   
   library(RANN)
->>>>>>> developMB
   
   # number of species groups (states, including regeneration, water, or non-forests) in the landscape
   covers <- levels(land$SppGrp)
   spp <- covers[covers!="NonFor" & covers!="Water" & covers!="rege"]
   
   # initialize 1 matrix with as many rows as target cells and columns as species
-<<<<<<< HEAD
-  cells.neigh <- matrix(nrow=nrow(target.cells), ncol=nspp) 
-=======
   cells.neigh <- matrix(nrow=nrow(target.cells), ncol=length(covers)) 
->>>>>>> developMB
   # and 1 vector of length corresponding to the number of target cells
   target.spp <- numeric(nrow(target.cells))
   
@@ -73,13 +65,8 @@ neighour.spp <- function(land, target.cells, radius.neigh, km2.pixel){
                                         ifelse(eco.type=="FC" | eco.type=="FO" | eco.type=="LA" | eco.type=="LL" | eco.type=="MF", "OthDT")))))))
     }
     else {
-<<<<<<< HEAD
-      id <- sample(1:(nspp-3), 1, replace=FALSE, prob=cells.neigh[i,-c(4,7,9)])
-      target.spp[i] <- spp[id]
-=======
       id <- sample(1:length(spp), 1, replace=FALSE, prob=cells.neigh[i,-autres])
       target.spp[i] <- noms[-autres][id]
->>>>>>> developMB
     }
   }
   
