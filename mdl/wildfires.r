@@ -4,7 +4,7 @@
 ###  Description >  Simulates fire events in four zones with distinct fire regime.
 ###                 Called in landscape.dyn
 ###
-###  Arguments >  
+###  Arguments >
 ###   land : appropriate selection fo the data frame of the state variables
 ###   file.num.fires : data frame of the number of fire per period by fire regime zone
 ###   file.fire.sizes : data frame of the fire sizes distribution by fire regime zone
@@ -22,7 +22,8 @@
 
 
 wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
-                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire){
+                      fuel.types.modif, pigni.opt, km2.pixel, t,increase.fire,
+                      avec.combu, zone.fuel.load) {
   
   cat("Wildfires", "\n" )
   
@@ -58,9 +59,12 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
   ## Then assign baseline flammability to each type
   fuels <- fuel.type(land, fuel.types.modif, NA)
+  
+  ##### determine changes in landscape level fuel load per zone
   current.fuels <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
-  modif.fuels <- current.fuels
+  modif.fuels <- current.fuels[]
   modif.fuels$x <-  1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
+  #print(modif.fuels)
   
   ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
   fr.zones <- sample(LETTERS[1:8], 8, replace=FALSE)   
@@ -70,13 +74,14 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   
   ## Reset TrackFires data frame each run
   track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, atarget=NA,  aburnt=NA)  #atarget.modif=NA,
-  # track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
-  #                          flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
+  track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
+                            flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
   
   
   ## Start burning until annual target area per fire zone is not reached 
   izone="E"
   for(izone in fr.zones){
+    
     
     ## Determine annual area burnt per zone, but considering fire rate increase with time 
     baseline.area <- time.step*sum(land$FRZone==izone)/fire.regime$fri[fire.regime$zone==izone]
@@ -94,7 +99,13 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
     
     # random inter-period variability 
     target.area <- round(rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)) #in km2
-#   target.size <- round(target.area/km2.pixel)
+
+    ## modyfier based on changes in landscape-level fuel load
+    
+    if(zone.fuel.load == 1) {
+      target.area <- round(as.numeric(target.area* modif.fuels[modif.fuels$zone==izone,2]))
+    }
+    
     
     ## Record
     cat(paste("Zone:", izone, "- target.area (pxls):", target.area), "\n")
@@ -126,10 +137,6 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
         ## Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
         ## while others will gain... on average the difference should be 0
         fire.size.target <- pmax(1, round(fire.area/km2.pixel))
-        ## Change fire size to account for changes in landscape-level flammability
-        ## VERIFY THE IMPACT OF LANDSCAPE FLAMMABILITY ON FIRE SIZE. I dont' like to much
-        # fire.area.modif <- fire.area*modif.fuels$x[modif.fuels$zone==izone]
-        # fire.size.target.modif <- pmax(1, round(fire.area.modif/km2.pixel))
       }
       ## Do not target more than what remains to be burnt at the zone level
       fire.size.target <- min(fire.size.target, target.area-track.burnt)
@@ -143,6 +150,9 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
       ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
       ## Then assign baseline flammability to each type according to target fire size
       fuels <- fuel.type(land, fuel.types.modif, fire.size.target)
+      if(avec.combu == 0) {
+        fuels$baseline <- 0.95 }
+
       
       ## Select an ignition point according to probability of ignition and initialize tracking variables
       fire.front <- sample(pigni.zone$cell.id, 1, replace=F, pigni.zone$p)
@@ -227,7 +237,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   
     
   ## TRACKING
-  track.fire <- track.fire[-1,]; track.fire
+  track.fire <- track.fire[-1,] #; track.fire
   track.regime <- group_by(track.fire, zone) %>% summarize(nfires=length(atarget), atarget=sum(atarget), aburnt=sum(aburnt)) %>%
                   left_join(group_by(land, FRZone) %>% summarize(atot=length(FRZone)*km2.pixel), by=c("zone"="FRZone")) %>%
                   mutate(fire.cycle=round(time.step*atot/aburnt)) %>%
@@ -235,13 +245,18 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, baseline.fuel,
   # fuels
   fuels <- fuel.type(land, fuel.types.modif, NA)
   fuels.burnt <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif)
-  nb <-  length(unique(fuel.types.modif$baseline))
-  nzones <- length(levels(fuels$zone))
-  track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=nzones, ncol=nb),
-                            table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=nzones, ncol=nb)) %>%
-                select(-Var1.1, -Var2.1)
-  names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
+  nb <-  length(unique(na.omit(fuels$baseline)))
+  nzones <- length(unique(fuels$zone))
+  tf1 <- aggregate(baseline  ~  zone, data=fuels, mean)
+  tf2 <- aggregate(baseline  ~  zone, data=fuels.burnt, mean)
+  track.fuels <- left_join(tf1,tf2, by="zone")
+  names(track.fuels) <- c("zone", "pctg.zone", "pctg.burnt")
+  #track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=nzones, ncol=nb),
+  #                          table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=nzones, ncol=nb)) %>%
+  #              select(-Var1.1, -Var2.1)
+  #names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
   track.fuels$pctg.burnt[is.na(track.fuels$pctg.burnt)] <- 0
+
   
   ## Return the index of burnt cells and the tracking data.frames
   ## For some reason I still don't know, a few (little) times, there are duplicates in burnt.cells, 

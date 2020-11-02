@@ -56,6 +56,12 @@ H	3	large	0.95
 Y	1	small	0.1
 Y	2	small	0.4
 Y	3	small	0.95
+Y	1	large	0.95
+Y	2	large	0.95
+Y	3	large	0.95
 Z	1	small	0.1
 Z	2	small	0.4
 Z	3	small	0.95
+Z	1	large	0.95
+Z	2	large	0.95
+Z	3	large	0.95
