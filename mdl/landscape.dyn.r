@@ -3,7 +3,7 @@
 ###
 ###  Description > Runs the Landscape Dynamics Model. 
 ###
-###  Arguments >   
+###  Arguments >
 ###
 ###  Details > The landscape-level processes are fire, clear-cuts and partial-cuts
 ###            Post-disturbance regeneration and forest succession are based on 
@@ -84,11 +84,10 @@ landscape.dyn <- function(scn.name){
   track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
   track.spp.age.class <- data.frame(run=NA, year=NA, MgmtUnit=NA, SppGrp=NA, AgeClass=NA, n=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
-  track.land.fuel <- data.frame(run=NA, year=NA, zone=NA, x=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA, nfires=NA, atarget=NA,
                                   aburnt=NA, fire.cycle=NA, indx.combust=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, atarget=NA, aburnt=NA)  # atarget.modif=NA,
-  track.fuels <- data.frame(run=NA, year=NA, zone=NA, flam=NA, pctg.zone=NA, pctg.burnt=NA)
+  track.fuels <- data.frame(run=NA, year=NA, zone=NA, pctg.zone=NA, pctg.burnt=NA)
   track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
                            a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
                            area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA,
@@ -99,6 +98,8 @@ landscape.dyn <- function(scn.name){
   track.spp.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
   track.vol <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, DistType=NA, x=NA)
     
+  potential.spp$persist <- persist
+
   
   ## Start the simulations
   irun <- 1
@@ -147,10 +148,6 @@ landscape.dyn <- function(scn.name){
     track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
     rm(suitab); rm(aux)
     
-    ## Calculate the baseline fuel at the fire regime zone and track it
-    baseline.fuel <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
-    track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=0, baseline.fuel))
-
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
     ## It will be used when the option "replan" is not activated, 
     ## so recalculation of AAC level is only calculated once, during the first period
@@ -170,6 +167,10 @@ landscape.dyn <- function(scn.name){
     land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm>0.95] <- 1
     land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm<=0.95] <- 0    
 
+    
+    fuels <- fuel.type(land, fuel.types.modif, NA)
+    baseline.fuel <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
+    
     ## Start 
     t <- 0  #t<-5
     for(t in time.seq){
@@ -196,7 +197,7 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
         fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, baseline.fuel, 
-                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire)
+                              fuel.types.modif, pigni.opt, km2.pixel, t, increase.fire, avec.combu,zone.fuel.load)
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[3]])>0){
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
@@ -393,7 +394,6 @@ landscape.dyn <- function(scn.name){
               med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
       track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=t+year.ini, aux))
       aux <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
-      track.land.fuel <- rbind(track.land.fuel, data.frame(run=irun, year=t+year.ini, aux))
       rm(suitab); rm(aux)
 
       ## If required, plot maps of DisturbanceType at each time step 
@@ -408,7 +408,6 @@ landscape.dyn <- function(scn.name){
         # MAP[igni.id] <- 9
         writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
       }
-      
     } # t
   } # irun
   
@@ -419,11 +418,10 @@ landscape.dyn <- function(scn.name){
   write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
   track.fires$rem <- track.fires$atarget-track.fires$aburnt
   write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
-  track.fuels[,5:6] <- round(track.fuels[,5:6], 2)
+  track.fuels[,4:5] <- round(track.fuels[,4:5], 2)
   write.table(track.fuels[-1,], paste0(out.path, "/Fuels.txt"), quote=F, row.names=F, sep="\t")
-  track.land.fuel[,4] <- round(track.land.fuel[,4], 3)
-  write.table(track.land.fuel[-1,], paste0(out.path, "/FuelLand.txt"), quote=F, row.names=F, sep="\t")
   }
+ 
   write.table(track.vol[-1,], paste0(out.path, "/Volume.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.frzone[-1,], paste0(out.path, "/SppByFRZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
