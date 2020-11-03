@@ -19,6 +19,8 @@
 ###           of the species in the neighbourhood (one per column)
 ######################################################################################
 
+#target.cells = land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")]
+#radius.neigh=10000
 neighour.spp <- function(land, target.cells, radius.neigh, km2.pixel){
   
   library(RANN)
@@ -42,13 +44,15 @@ neighour.spp <- function(land, target.cells, radius.neigh, km2.pixel){
   rm(list.cell.neigh)
   
   # Select a community for the site in regeneration from the pool of suitable species
-  for (i in 1:nrow(target.cells)) {
+  for (i in 1:nrow(target.cells)) {  # i=1
     ## Count the abundance of each species / land-cover within the neigborhood buffer of the target cells
+    noms <- names(table(land$SppGrp[nn.indx[i,]]))
+    autres <- which(noms %in% c("NonFor","rege","Water"))
     cells.neigh[i,] <- table(land$SppGrp[nn.indx[i,]])
     ## Remove non-suitable land-covers:  NonFor (4), Water (9), and Regeneration (7) for the selection, 
     ## then choose a species id for each target cell according to the abundance in the neighbourhood.
-    ## If no species are available, then assign NonFor
-    if(sum(cells.neigh[i,-c(4, 7, 9)])==0){
+    ## If no species are available, then assign NonFor   
+    if(sum(cells.neigh[i,-autres])==0){
       eco.type <- land$EcoType[land$cell.id==target.cells$cell.id[i]]  
       target.spp[i] <- ifelse(eco.type=="RE" | eco.type=="ME", "EPN",
                               ifelse(eco.type=="RS" | eco.type=="MS", "SAB",
@@ -59,8 +63,8 @@ neighour.spp <- function(land, target.cells, radius.neigh, km2.pixel){
                                         ifelse(eco.type=="FC" | eco.type=="FO" | eco.type=="LA" | eco.type=="LL" | eco.type=="MF", "OthDT")))))))
     }
     else {
-      id <- sample(1:length(spp), 1, replace=FALSE, prob=cells.neigh[i,-c(4,7,9)])
-      target.spp[i] <- spp[id]
+      id <- sample(1:length(spp), 1, replace=FALSE, prob=cells.neigh[i,-autres])
+      target.spp[i] <- noms[-autres][id]
     }
   }
   

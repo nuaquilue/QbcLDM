@@ -69,7 +69,7 @@ read.state.vars <- function(work.path){
   ## Then join the forest data 
   dta <- data.frame(cell.id = 1:ncell(MASK), mask=MASK[], round(coordinates(MASK),0)) %>%
          left_join(dplyr::select(forest.data, UNIQUE_ID, X_COORD, Y_COORD, UH_REG2, TECO2, TEMPE, PRECI, 
-                          COMPO2, TSD, DEP3, EXCLU, UAF18, MATU, FRZ, DOM), 
+                          COMPO2, TSD, DEP3, EXCLU, UAF18, MATU, FRZ, DOM,ECOTYPE), 
                    by=c("x"="X_COORD", "y"="Y_COORD"))
   
   
@@ -86,6 +86,7 @@ read.state.vars <- function(work.path){
                      MgmtUnit = dta$UAF18,
                      SppGrp = sub("BOP", "OthDT", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO2))),
                      EcoType = substr(dta$TECO2,0,2),
+                     EcoType2 = as.character(dta$ECOTYPE),
                      Age = dta$TSD,
                      SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", dta$DEP3)))))),
                      Exclus = dta$EXCLU,
@@ -235,7 +236,6 @@ read.state.vars <- function(work.path){
   MASK[is.na(land$SppGrp)] <- NA
   save(MASK, file="inputlyrs/rdata/mask.rdata")
   
-  
   ## 12. Give raster structure to each state variable to be saved in a layer stack 
   MASK[] <- land$FRZone; FRZone <- MASK
   MASK[] <- land$BCDomain; BCDomain <- MASK
@@ -247,9 +247,10 @@ read.state.vars <- function(work.path){
   MASK[] <- land$SoilType; SoilType <- MASK
   MASK[] <- land$Exclus; Exclus <- MASK
   MASK[] <- land$AgeMatu; AgeMatu <- MASK
+  MASK[] <- land$EcoType2; EcoType2 <- MASK
   sp.input <- list(FRZone=FRZone, BCDomain=BCDomain, MgmtUnit=MgmtUnit,
                    SppGrp=SppGrp, Age=Age, Temp=Temp, Precip=Precip,
-                   SoilType=SoilType, Exclus=Exclus, AgeMatu=AgeMatu) 
+                   SoilType=SoilType, Exclus=Exclus, AgeMatu=AgeMatu,EcoType2=EcoType2) 
   save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
     
   

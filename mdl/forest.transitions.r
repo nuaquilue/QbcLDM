@@ -21,6 +21,8 @@
           # prob.reg <- post.fire.reg
 #          subland  <- filter(land, cell.id %in% cc.cells)
 #          prob.reg <- post.harvest.reg
+#  dtype = "C"
+#   target.cells <- cc.cells
 
 forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential.spp, 
                          dtype, p.failure, age.seed, suboptimal, enfeuil){
@@ -38,7 +40,9 @@ forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential
   ## Keep the current species in case any potential species can colonize the site.
   ## In that case, the current species, persist.
   subland <- filter(land, cell.id %in% target.cells)
-  current.spp <- subland$SppGrp  
+  subland$SppGrp <- as.character(subland$SppGrp)
+  current.spp <- subland$SppGrp
+  subland[is.na(subland$PotSpp),]
   
   ## Join to the subland data frame the probability of transition to PotSpp (according to initial SppGrp)
   ## Then join buffer results indicating whether the potential species is present in the surrounding neighborhood
@@ -78,7 +82,7 @@ forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential
   ## (under the assumption that competition is more limiting than  physiological response to climate)
   ## First, find which spp are allowed to persist then, upgrade climatic suitability to suboptimal
   ## in case this is lower than suboptimal.
-  spp.persist <- potential.spp$PotSpp[potential.spp$persist==0.1]
+  spp.persist <- potential.spp$spp[potential.spp$persist==1]
   subland$SuitClim[subland$SppGrp %in% spp.persist & 
                      subland$SppGrp == subland$PotSpp & subland$SuitClim<suboptimal] <- suboptimal
   
@@ -89,6 +93,7 @@ forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential
   ## the corresponding transition probability (one row per target cell)
   ## Substitute dcast by "gather" or "spread" from tidyverse
   aux <- reshape2::dcast(subland, formula = cell.id ~ PotSpp, value.var = "p")
+  #subland[subland$PotSpp ==NA,]$p
   
   ## Now select a new spp according to these probabilities and assign the corresponing species name
   ## If after all filters, p for all PotSpp is 0, the current species remains
@@ -97,7 +102,14 @@ forest.trans <- function(land, target.cells, prob.reg, buffer, suitab, potential
   new.spp <- numeric(length=length(id.spp))
   new.spp[id.spp!=0] <- spp.names[id.spp[id.spp!=0]]
   new.spp[id.spp==0] <- as.character(current.spp[id.spp==0])
+  # pour les cellules deja dominées par other, revenir à la même chose
+  new.spp[new.spp %in% c("OTH") & current.spp %in% c("OthCB","OthCT","OthDB","OthDT")] <- 
+   current.spp[new.spp %in% c("OTH") & current.spp %in% c("OthCB","OthCT","OthDB","OthDT")]   
+  
   new.spp[new.spp=="OTH"] <- select.others(land, unique(subland$cell.id)[new.spp=="OTH"])
+  
+
+  #cbind(new.spp,current.spp)
   
   ## Return the vector with the name of the new spp
   return(new.spp)

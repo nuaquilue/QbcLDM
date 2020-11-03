@@ -67,5 +67,5 @@ NonFor	EPN	0
 NonFor	PET	0
 NonFor	ERS	0
 NonFor	BOJ	0
-NonFor	OTH	0.01
+NonFor	OTH	0.0
 NonFor	NonFor	100

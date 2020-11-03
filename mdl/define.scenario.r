@@ -81,12 +81,15 @@ define.scenario <- function(scn.name){
                  # for attenuation of natural disturbance impacts on timber supply fluctuations.
   replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
                  # once, during the first period
+  timber.supply <- "area.based"
+  lutte <- 0 # 1 = reboisement systématique des peuplements conifériens qui deviennent feuillus
+             # suite a une perturbation
   
   
   ## VEGETATION DYNAMICS parameters:
   enable.succ <- TRUE # enable natural succession every 40 years (if FLASE, composition remains the same)
-  enfeuil <- 0.5
-  age.seed <- 50     # below this stand age, seed production is very low, and regeneration failures are more likely
+  enfeuil <- 0.0
+  age.seed <- 40     # below this stand age, seed production is very low, and regeneration failures are more likely
   p.failure <- 0     # probability of regeneration failure in young (< 50 years) burned stands
   suboptimal <- 0.5  # tolerance for sub optimal conditions
   post.fire.reg <- read.table("inputfiles/PostFireRege.txt", header=T)
