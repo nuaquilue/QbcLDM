@@ -63,7 +63,7 @@ save(grid.zone.area, file="C:/WORK/QBCMOD/DocsFires/rmarkdown/GridZone.rdata")
 ## Annual SEP data from 1994 to 2018  --> 1338 spatial units
 sep <- read.xlsx("C:/WORK/QBCMOD/DataIn/SEP/SEP_Observed Historic 1994-2018_by Grid cell.xlsx", sheetName="Feuil1")
 # Which is missing? NONE
-a <- which(grid.id$UNIQUE %notin% sep$UNIQUE)
+a <- which(grid.zone.area$UNIQUE %notin% sep$UNIQUE)
 ## Convert into a data frame with UNIQUE, YEAR and SEP values
 sep <- select(sep, -OID, - PROVINCE, -FISH_AREA, -Centroid_X, -Centroid_Y)
 names(sep)[-1] <- as.numeric(substring(names(sep)[-1], 5,9))

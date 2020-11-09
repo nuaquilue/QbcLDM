@@ -48,15 +48,20 @@ define.scenario <- function(scn.name){
   
   ## CLIMATE CHANGE parameters
   clim.scn <- NA # or "rcp45" or "rcp85"
+  gcm.sep <- "GCM4_ESM2_10km"
   
   
   ## FIRE parameters: distributions of fire regime per FRZone
   file.fire.regime <- "inputfiles/FireRegime.txt"
   file.fire.sizes <- "inputfiles/FireSizes.txt" 
+  sep.zone <- read.table("inputfiles/SEPzone.txt", header=T)
   fuel.types.modif <- read.table("inputfiles/FuelTypeModif.txt", header=T)
   pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static" for a spatial but static 
                       # probability of fire ignition, or "dyn" for a dynamic probability of ignition derived from
                       # a empiric relation between ignitions and environmental / anthropic drivers.
+  is.fuel.modifier <- T
+  is.clima.modifier <- T
+  is.fuel.firesprd <- T
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
@@ -81,6 +86,9 @@ define.scenario <- function(scn.name){
                  # for attenuation of natural disturbance impacts on timber supply fluctuations.
   replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
                  # once, during the first period
+  replanif <- 0  # when 1, timber supply calculation is done at each time step to readjust harvest level
+  # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
+  
   timber.supply <- "area.based"
   lutte <- 0 # 1 = reboisement systématique des peuplements conifériens qui deviennent feuillus
              # suite a une perturbation
