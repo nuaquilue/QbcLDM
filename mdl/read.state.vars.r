@@ -134,10 +134,13 @@ read.state.vars <- function(work.path){
   
   
   ## 7. Initialize other state variables
-  ## 7.1. Initalize the Time since last disturbance and the Type of the last disturbance
+  ## 7.1. Initalize the 4 time since last disturbance variables
   ## The origin of any disturbance that may have impacted the study area is known.
-  land$TSDist <- 400
-  land$DistType <- 0
+  land$TSF <- 100
+  land$TSSBW <- 100
+  land$TSCC <- land$Age
+  # land$TSPCut <- land$Age - (land$AgeMatu/2)   not sure if this formulation or the following one!!
+  
   
   ## 7.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.

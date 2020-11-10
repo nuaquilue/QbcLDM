@@ -20,7 +20,9 @@ landscape.dyn <- function(scn.name){
     library(tictoc)
     library(raster)
     library(RANN)
+    # library(dplyr)
     library(tidyverse)
+    # options(dplyr.summarise.inform = FALSE)
     require (reshape)
   })
   source("mdl/wildfires.r")
@@ -70,24 +72,23 @@ landscape.dyn <- function(scn.name){
   
 
   ## Build the discrete time sequence according to time.step
-  ## 0  5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85
+  ## 0  5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85  # MATHIEU
+  ## 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90  # NÚRIA
   ## lenght(time.seq) is 18
-  time.seq <- seq(0, time.horizon, time.step) 
+  time.seq <- seq(time.step, time.horizon, time.step) 
   
   
-  ## Tracking data.frames  ( review description ARE WRONG!!)
-  ## 1. Area of each species within poor, medium, or good climatic-soil suitability levels
-  ## 2. The distribution of Ages Class per management unit
-  ## 3. The area affected by the disturbances in each management unit or fire zone (whatever it applies)
+  ## Tracking data.frames 
   breaks <- c(0,20,40,60,80,100,999)
   tags <- c("C10","C30", "C50", "C70", "C90", "OLD")
-  track.spp.frzone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, Area=NA)
-  track.spp.age.class <- data.frame(run=NA, year=NA, MgmtUnit=NA, SppGrp=NA, AgeClass=NA, n=NA)
+  track.spp.firezone <- data.frame(run=NA, year=NA, FRZone=NA, SppGrp=NA, area=NA)
+  track.spp.age.class <- data.frame(run=NA, year=NA, MgmtUnit=NA, SppGrp=NA, AgeClass=NA, n=NA, area=NA)
   track.suit.class <- data.frame(run=NA, year=NA, BCDomain=NA, PotSpp=NA, poor=NA, med=NA, good=NA)
   track.fire.regime <- data.frame(run=NA, year=NA, zone=NA,  target.area=NA, nfires=NA, burnt.area=NA, 
                                   fire.cycle=NA, indx.combust=NA, indx.combust.burnt=NA)
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, target.size=NA, burnt.size=NA)
   track.target <- data.frame(run=NA, year=NA, zone=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
+  track.fuel <- data.frame(run=NA, year=NA, zone=NA, ftype=NA, pct=NA)
   track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
                            a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
                            area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA,
@@ -106,47 +107,27 @@ landscape.dyn <- function(scn.name){
     ## Load dynamic state variables 
     load(file="inputlyrs/rdata/land.rdata")
     
+    
     ## Set the scheduling of the processes
     fire.schedule <- seq(0, time.horizon, fire.step)
     cc.schedule <- seq(0, time.horizon, cc.step)
     pc.schedule <- seq(0, time.horizon, pc.step)
+    # if(sbw.step.fix) 
     sbw.schedule <- c(0,35,70)
-    #if(sbw.step.fix) {
-    #  sbw.schedule <- seq(sbw.step, time.horizon, sbw.step)
-    #}    else {
-    #        sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
-    #}
+    # else 
+    #   sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
     
-    
-    ## Record initial species distribution per fire zone, and distribution of age classes per management unit
-    track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=0, 
-                              group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
-    land$AgeClass <- cut(land$Age, breaks=breaks, include.lowest=TRUE, right=TRUE, labels=tags)
-          # Waiting for MB approval to unify criteria for tracking variables
-    track.spp.age.class <- rbind(track.spp.age.class, 
-            data.frame(run=irun, year=year.ini-5, group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass))) 
-
-    
-    ## Record initial suitability classes per BCDomain 
-    suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
-    aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
-           group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
-           med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
-    track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
-    rm(suitab); rm(aux)
     
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
     ## It will be used when the option "replan" is not activated, 
     ## so recalculation of AAC level is only calculated once, during the first period
     ref.harv.level <- table(land$MgmtUnit)*NA
     
-    # variables temporaires
-    land$TSF <- 100
-    land$TSSBW <- 100
-    land$TSCC <- land$Age
-    land$TSPCut <- land$Age - (land$AgeMatu/2)
     
-    # determiner le regime de coupe - even aged (1), uneven aged(0), autres(2)
+    ## Determine the harvest regime for each species:
+    ## even aged (1): 95% all conifers, PET, DB
+    ## uneven aged (0): 95% deciduous
+    ## autres (2)
     land <- mutate(land, rndm=runif(nrow(land)))
     land$even <-2
     land$even[land$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land$Exclus) & land$rndm<=0.95] <- 1
@@ -154,17 +135,43 @@ landscape.dyn <- function(scn.name){
     land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm>0.95] <- 1
     land$even[land$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land$Exclus) & land$rndm<=0.95] <- 0    
 
+    
     ## Compute the baseline fuel at the fire zone level
     fuels <- fuel.type(land, fuel.types.modif, NA)
     baseline.fuel <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
     
     
+    ## Record initial distributions:
+    ## Species distribution per fire zone
+    track.spp.firezone <- rbind(track.spp.firezone, 
+                                data.frame(run=irun, year=year.ini, 
+                                group_by(land, FRZone, SppGrp) %>% summarize(area=length(cell.id)*km2.pixel)))
+    ## Fuel type distribution per fire zone
+    zone.size <- group_by(land, FRZone) %>% summarize(x=length(FRZone))
+    fuels$ftype <- ifelse(fuels$baseline==0.1, "low", ifelse(fuels$baseline==0.4, "med", "high"))
+    aux <- group_by(fuels, zone, ftype) %>% summarize(n=length(zone)) %>% 
+           left_join(zone.size, by=c("zone"="FRZone")) %>% mutate(pct=n/x) %>% select(-n, -x)
+    track.fuel <- rbind(track.fuel, data.frame(run=irun, year=year.ini, aux))
+    ## Age classes distribution per species and management unit
+    land$AgeClass <- cut(land$Age, breaks=breaks, include.lowest=TRUE, right=TRUE, labels=tags)
+    track.spp.age.class <- rbind(track.spp.age.class, 
+                                 data.frame(run=irun, year=year.ini, 
+                                 group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass)) %>% mutate(area=n*km2.pixel))
+    ## Suitability classes distribution per BCDomain 
+    suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
+    aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
+      group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
+                                               med=sum(SuitClim==0.5)*km2.pixel, good=sum(SuitClim==1)*km2.pixel) 
+    track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
+    rm(suitab); rm(aux)
+    
     ## Start 
-    t <- 0  #t<-5
+    t <- 0  # MATHIEU
+    t <- 5  # NÚRIA
     for(t in time.seq){
       
       ## Track scenario, replicate and time step
-      print(paste0("scn:", scn.name, " - run:", irun, "/", nrun, " - time:", t+year.ini))
+      print(paste0("scn: ", scn.name, " - run: ", irun, "/", nrun, " - time: ", year.ini+t-time.step, " to ", t+year.ini))
       
       ## Update climatic variables at each time step if climate change is activated
       ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
@@ -184,7 +191,7 @@ landscape.dyn <- function(scn.name){
       ## 1. FIRE
       burnt.cells <- integer() 
       if(processes[fire.id] & t %in% fire.schedule){
-        fire.out <- wildfires(land, file.fire.regime, file.fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, 
+        fire.out <- wildfires(land, fire.regime, fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, 
                               is.fuel.modifier, is.clima.modifier, is.fuel.firesprd,  gcm.sep, clim.scn, km2.pixel, t, ncol(MASK))
         burnt.cells <- fire.out[[1]]
         if(nrow(fire.out[[4]])>0){
@@ -193,8 +200,6 @@ landscape.dyn <- function(scn.name){
           track.fires <- rbind(track.fires, data.frame(run=irun, year=t+year.ini, fire.out[[4]]))
         }
         # Done with fires
-        land$TSDist[land$cell.id %in% burnt.cells] <- 0
-        land$DistType[land$cell.id %in% burnt.cells] <- fire.id
         land$TSF[land$cell.id %in% burnt.cells] <- 0
         fire.schedule <- fire.schedule[-1]          
       }
@@ -206,8 +211,6 @@ landscape.dyn <- function(scn.name){
         kill.cells <- sbw.outbreak(land, severity=1, km2.pixel)
         # Done with outbreak
         land$TSSBW[land$cell.id %in% kill.cells] <- 0
-        land$TSDist[land$cell.id %in% kill.cells] <- 0
-        land$DistType[land$cell.id %in% kill.cells] <- sbw.id
         sbw.schedule <- sbw.schedule[-1]
       }
 
@@ -249,12 +252,8 @@ landscape.dyn <- function(scn.name){
             track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
           }
           # Done with clear cuts
-          land$TSDist[land$cell.id %in% cc.cells] <- 0
-          #land$TSDist[land$cell.id %in% pc.cells] <- 0
           land$TSPCut[land$cell.id %in% pc.cells] <- 0
           land$TSCC[land$cell.id %in% cc.cells] <- 0
-          land$DistType[land$cell.id %in% cc.cells] <- cc.id
-          land$DistType[land$cell.id %in% pc.cells] <- pc.id
           cc.schedule <- cc.schedule[-1]  
           pc.schedule <- pc.schedule[-1]  
                  }
@@ -271,12 +270,8 @@ landscape.dyn <- function(scn.name){
             track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
            }
           # Done with clear cuts
-          land$TSDist[land$cell.id %in% cc.cells] <- 0
-          #land$TSDist[land$cell.id %in% pc.cells] <- 0
           land$TSPCut[land$cell.id %in% pc.cells] <- 0
           land$TSCC[land$cell.id %in% cc.cells] <- 0
-          land$DistType[land$cell.id %in% cc.cells] <- cc.id
-          land$DistType[land$cell.id %in% pc.cells] <- pc.id
           cc.schedule <- cc.schedule[-1]  
           pc.schedule <- pc.schedule[-1]  
       }
@@ -287,51 +282,48 @@ landscape.dyn <- function(scn.name){
       initial.forest.comp <- land$SppGrp
       if(enable.succ){  
          
-      ## Natural regeneration of forest after disturbance depends on the nature of the disturbance, 
-      ## the age of the stand at the time the disturbance occurred, and the environmental suitability
-      ## according to climate and soils. Compute it:
-      suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal)
+        ## Natural regeneration of forest after disturbance depends on the nature of the disturbance, 
+        ## the age of the stand at the time the disturbance occurred, and the environmental suitability
+        ## according to climate and soils. Compute it:
+        suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal)
       
-      ## Regeneration after fire
-      if(length(burnt.cells)>0) {
-      buffer <- buffer.mig4(land, burnt.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(land, burnt.cells, post.fire.reg, buffer, 
-                 suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
-      }
-
-      ## Regeneration after sbw outbreak
-      if(length(kill.cells)>0) {
-      buffer <- buffer.mig4(land, kill.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(land, kill.cells, post.sbw.reg, buffer, 
-                 suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
-              
-      }
-
-      ##  Regeneration after clear-cutting
-      if(length(cc.cells)>0) {
-      buffer <- buffer.mig4(land, cc.cells, potential.spp)
-      land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(land, cc.cells,post.harvest.reg, buffer, 
-                  suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
-      }
-      
-      #######
-      # maintien forcé de la composition forestière (plantation)
-      if(lutte ==1) {
-        territ <- !is.na(land$MgmtUnit) 
-        # superficie qui passe de feu à res et l'inverse
-        plant.1 <- initial.forest.comp[territ] %in% c("SAB","EPN") & land$SppGrp[territ] %in% c("PET","BOJ","ERS") 
-        plant.2 <- initial.forest.comp[territ] %in% c("PET","BOJ","ERS") & land$SppGrp[territ] %in% c("SAB","EPN")
-        #print(c(sum(plant.1),sum(plant.2)))
-        plant.1a <- plant.1[land$MgmtUnit[territ] == "2751"]
-        plant.2a <- plant.2[land$MgmtUnit[territ] == "2751"]
-        #print(c(sum(job1b),sum(job2b))) 
-        land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")]
+        ## Regeneration after fire
+        if(length(burnt.cells)>0){
+          buffer <- buffer.mig4(land, burnt.cells, potential.spp)
+          land$SppGrp[land$cell.id %in% burnt.cells] <- forest.trans(land, burnt.cells, post.fire.reg, buffer, 
+                     suitab, potential.spp, dtype="B", p.failure, age.seed, suboptimal, enfeuil)
         }
-      #
-      ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
 
+        ## Regeneration after sbw outbreak
+        if(length(kill.cells)>0){
+          buffer <- buffer.mig4(land, kill.cells, potential.spp)
+          land$SppGrp[land$cell.id %in% kill.cells] <- forest.trans(land, kill.cells, post.sbw.reg, buffer, 
+                     suitab, potential.spp, dtype="O", p.failure, age.seed, suboptimal, enfeuil)
+        }
+
+        ##  Regeneration after clear-cutting
+        if(length(cc.cells)>0){
+          buffer <- buffer.mig4(land, cc.cells, potential.spp)
+          land$SppGrp[land$cell.id %in% cc.cells] <- forest.trans(land, cc.cells,post.harvest.reg, buffer, 
+                      suitab, potential.spp, dtype="C", p.failure, age.seed, suboptimal, enfeuil)
+        }
+      
+        ######## maintien forcé de la composition forestière (plantation)
+        if(lutte ==1) {
+          territ <- !is.na(land$MgmtUnit) 
+          # superficie qui passe de feu à res et l'inverse
+          plant.1 <- initial.forest.comp[territ] %in% c("SAB","EPN") & land$SppGrp[territ] %in% c("PET","BOJ","ERS") 
+          plant.2 <- initial.forest.comp[territ] %in% c("PET","BOJ","ERS") & land$SppGrp[territ] %in% c("SAB","EPN")
+          #print(c(sum(plant.1),sum(plant.2)))
+          plant.1a <- plant.1[land$MgmtUnit[territ] == "2751"]
+          plant.2a <- plant.2[land$MgmtUnit[territ] == "2751"]
+          #print(c(sum(job1b),sum(job2b))) 
+          land$SppGrp[initial.forest.comp%in% c("SAB","EPN")] <- initial.forest.comp[initial.forest.comp%in% c("SAB","EPN")]
+        }
+      
+        ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
         chg.comp.cells <- filter(land, (Age-AgeMatu) %in% seq(40,400,40) & Tcomp>=70) %>% select(cell.id)
-        if(length(unlist(chg.comp.cells))>0) {
+        if(length(unlist(chg.comp.cells))>0){
   #        target.cells <- land[land$cell.id %in% unlist(chg.comp.cells), c("cell.id", "x", "y")]
           buffer <- buffer.mig4(land, unlist(chg.comp.cells), potential.spp)
   #       buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
@@ -349,33 +341,41 @@ landscape.dyn <- function(scn.name){
         #   sample(seq(10,40,5),1)
       }
       
+      
       ## Now, for each cell that has changed composition (because of natural succession or regeneration
       ## post-distrubance), re-initialize Tcomp
       land$Tcomp[land$SppGrp != initial.forest.comp] <- 0
       land$Age[land$cell.id %in% burnt.cells] <- 0
       land$Age[land$cell.id %in% kill.cells] <- 0
       land$Age[land$cell.id %in% cc.cells] <- 0
-      
-      land$TSPCut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)
+      land$TSPCut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)  ## ¿?
       
 
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
       land$Age <- land$Age + time.step
-      land$TSDist <- land$TSDist + time.step
       land$Tcomp <- land$Tcomp + time.step
-      land$TSPCut <- land$TSPCut + time.step
       land$TSF <- land$TSF + time.step      
       land$TSSBW <- land$TSSBW + time.step     
+      land$TSCCut <- land$TSCC + time.step
+      land$TSPCut <- land$TSPCut + time.step
+      
+      
       
       ##################################### TRACKING AND SPATIAL OUTS #####################################
-      track.spp.frzone <- rbind(track.spp.frzone, data.frame(run=irun, year=t+year.ini, 
-                                group_by(land, FRZone, SppGrp) %>% summarize(Area=length(cell.id)*km2.pixel)))
-      land$AgeClass <- cut(land$Age, 
-                           breaks=breaks, 
-                           include.lowest=TRUE, 
-                           right=TRUE, labels=tags)
-      track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=(t)+year.ini, 
-                                                                   group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass)))
+      ## Species distribution per fire zone
+      track.spp.firezone <- rbind(track.spp.firezone, data.frame(run=irun, year=t+year.ini, 
+                                group_by(land, FRZone, SppGrp) %>% summarize(area=length(cell.id)*km2.pixel)))
+      ## Fuel type distribution per fire zone
+      fuels <- fuel.type(land, fuel.types.modif, NA)
+      fuels$ftype <- ifelse(fuels$baseline==0.1, "low", ifelse(fuels$baseline==0.4, "med", "high"))
+      aux <- group_by(fuels, zone, ftype) %>% summarize(n=length(zone)) %>% 
+            left_join(zone.size, by=c("zone"="FRZone")) %>% mutate(pct=n/x) %>% select(-n, -x)
+      track.fuel <- rbind(track.fuel, data.frame(run=irun, year=t+year.ini, aux))
+      ## Age classes distribution per species and management unit      
+      land$AgeClass <- cut(land$Age, breaks=breaks, include.lowest=TRUE, right=TRUE, labels=tags)
+      track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=t+year.ini, 
+                              group_by(land, MgmtUnit, SppGrp) %>% count(AgeClass)) %>%  mutate(area=n*km2.pixel))
+      ## Suitability classes distribution per BCDomain   
       suitab <- suitability(land, temp.suitability, precip.suitability, soil.suitability, suboptimal) 
       aux <- left_join(suitab, select(land, cell.id, BCDomain), by="cell.id") %>%
               group_by(BCDomain, PotSpp) %>% summarize(poor=sum(SuitClim==0)*km2.pixel, 
@@ -383,36 +383,33 @@ landscape.dyn <- function(scn.name){
       track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=t+year.ini, aux))
       aux <- group_by(fuel.type(land, fuel.types.modif), zone) %>% summarize(x=mean(baseline))
       rm(suitab); rm(aux)
+      
 
-      ## If required, plot maps of DisturbanceType at each time step 
+      ## If required, plot maps at each time step 
       if(write.sp.outputs){
         MAP <- MASK
         cat("... writing output layers", "\n")
-        # nfire <- sum(track.fire$year==t, na.rm=T)
-        # sizes <- filter(track.fire, year==t) %>% group_by(swc, fire.id) %>% summarise(ab=aburnt.highintens+aburnt.lowintens)
-        # Ignitions' cell.id 
-        # igni.id <- burnt.cells[c(1,cumsum(sizes$ab)[1:(nfire-1)]+1)] 
         MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  
-        # MAP[igni.id] <- 9
         writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
       }
+      
     } # t
   } # irun
   
   
   cat("... writing outputs", "\n")
-  if(processes[1]) {
+  if(processes[1]){
     track.fire.regime[,8:9] <- round(track.fire.regime[,8:9], 2)     
     write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
     track.fires$rem <- track.fires$target.size-track.fires$burnt.size
     write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
     write.table(track.target[-1,], paste0(out.path, "/BurntRates.txt"), quote=F, row.names=F, sep="\t")
   }
- 
-  write.table(track.vol[-1,], paste0(out.path, "/Volume.txt"), quote=F, row.names=F, sep="\t")
-  write.table(track.spp.frzone[-1,], paste0(out.path, "/SppByFRZone.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.spp.firezone[-1,], paste0(out.path, "/SppByFireZone.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.fuel[-1,], paste0(out.path, "/FuelByFireZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.vol[-1,], paste0(out.path, "/Volume.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.ccut[-1,], paste0(out.path, "/ClearCut.txt"), quote=F, row.names=F, sep="\t")
   track.spp.ccut <- track.spp.ccut[-1,] 
   write.table(track.spp.ccut, paste0(out.path, "/ClearCutSpp.txt"), quote=F, row.names=F, sep="\t")

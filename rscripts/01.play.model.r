@@ -9,11 +9,10 @@ play.landscape.dyn <- function(){
   pigni.opt <- "static.exp"
   nrun <- 1
   write.sp.outputs <- F
-  pb.upper.th <- 0.75 
-  pb.lower.th <- -1
+  clim.scn <- "rcp85"
   # Processes: 1.fire, 2.sbw, 3.clearcut, and 4.partialcut
   processes <- c(T, F, F, F)
-  dump(c("nrun", "pigni.opt", "write.sp.outputs", "pb.lower.th", "pb.upper.th", "processes"), 
+  dump(c("nrun", "pigni.opt", "write.sp.outputs",  "processes", "clim.scn"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
 }

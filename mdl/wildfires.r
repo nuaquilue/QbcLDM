@@ -21,17 +21,14 @@
 ######################################################################################
 
 
-wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseline.fuel, fuel.types.modif, pigni.opt, 
+wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, fuel.types.modif, pigni.opt, 
                       is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, t, ncol.raster) {
   
   cat("Wildfires", "\n" )
   
   ## Function to select items not in a vector
   `%notin%` <- Negate(`%in%`)
-  
-  ## Read fire regime and fire size distribution per FZ
-  fire.regime <- read.table(file.fire.regime, header = T)
-  fire.sizes <- read.table(file.fire.sizes, header = T)
+
   
   ## Generate random probability of ignition or load static pigni
   if(pigni.opt=="rand"){
@@ -62,9 +59,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
   #print(modif.fuels)
   
   ## To modify target area to be burnt according to SEP values (climate change)
-  if(is.na(clim.scn))
-    sep.zone.cc <- filter(sep.zone, GCM==gcm.sep, RCP=="rcp26")
-  else
+  if(!is.na(clim.scn))
     sep.zone.cc <- filter(sep.zone, GCM==gcm.sep, RCP==clim.scn)
   
   ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
@@ -103,7 +98,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
     aux.track$brfuel <- zone.target.area
     
     ## 4. Modify target area based on climate projections
-    if(is.clima.modifier){
+    if(is.clima.modifier & !is.na(clim.scn)){
       if(t>=30 & t<60){
         zone.target.area <- zone.target.area*sep.zone.cc$rSEP1[sep.zone.cc$Zone==izone]
         aux.track$brclima <- aux.track$brvar*sep.zone.cc$rSEP1[sep.zone.cc$Zone==izone]
@@ -113,6 +108,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
         aux.track$brclima <- aux.track$brvar*sep.zone.cc$rSEP1[sep.zone.cc$Zone==izone]
       }
     }
+    else
+      aux.track$brclima <- aux.track$brvar
     
     
     ## Track target area modifications
@@ -126,15 +123,18 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
     ## Record
     cat(paste("Zone:", izone, "- Target area (cells):", zone.target.area), "\n")
     
+    
     ## For each fire zone, look for the associated fire size distribution; and 
     ## only keep potential ignitions cells in the fire zone
     fs.dist <- filter(fire.sizes, frz==izone) %>% select(-frz)
     pigni.zone <- filter(pigni, frz==izone)
     
+    
     ## Initialize traking variables every zone
-    fire.id <- track.burnt <- 0
-    pxl.burnt <- fire.target.area <- 0 ## to make the first "if" condition true
-    while(track.burnt < zone.target.area){   ## condition in pixels
+    fire.id <- 0
+    fire.ncell.burnt <- zone.ncell.burnt <- 0
+    fire.target.area <- 0 ## to make the first "if" condition true
+    while(zone.ncell.burnt < zone.target.area){   ## condition in pixels
     
       ## ID for each fire event
       fire.id <- fire.id+1
@@ -143,8 +143,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
       ## target area for a new fire. This tends to occur when potentially big fires start in low-fuel lands
       ## Or in a agro-forest matrix. I may need to add a condition related to the minimum target area
       ## I allow to be reused (something big e.g < 200)
-      if(fire.id==1 | (fire.id>1 & pxl.burnt/fire.target.area>=0.5) |
-         (fire.id>1 & pxl.burnt/fire.target.area<0.5 & fire.target.area<=50) ){
+      if(fire.id==1 | (fire.id>1 & fire.ncell.burnt/fire.target.area>=0.5) |
+         (fire.id>1 & fire.ncell.burnt/fire.target.area<0.5 & fire.target.area<=50) ){
         ## Determine potential area of the fires (i.e. the target area) in km2
         ## Fire size is drawn from an discrete distribution defined in classes of 50 km2 
         fire.class <- sample(1:nrow(fs.dist), 1, replace=F, p=fs.dist$p) 
@@ -155,7 +155,7 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
         fire.target.area <- pmax(1, round(fire.target.size/km2.pixel))
       }
       ## Do not target more than what remains to be burnt at the zone level
-      fire.target.area <- min(fire.target.area, zone.target.area-track.burnt)
+      fire.target.area <- min(fire.target.area, zone.target.area-zone.ncell.burnt)
       fire.target.area
       
       ## Assign the main wind direction 
@@ -175,15 +175,15 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
       fire.front <- sample(pigni.zone$cell.id, 1, replace=F, pigni.zone$p)
       burnt.cells <- c(burnt.cells, fire.front)
       visit.cells <- c(visit.cells, fire.front)
-      track.burnt <- track.burnt + 1
-      pxl.burnt <- 1  
+      zone.ncell.burnt <- zone.ncell.burnt + 1
+      fire.ncell.burnt <- 1  
       # track.sprd <- rbind(track.sprd, 
       #                     data.frame(zone=izone, fire.id=fire.id, cell.id=fire.front,
       #                                flam=0, wind=0, sr=1, pb=1, burning=TRUE))
       
       
       ## Start speading from active cells (i.e. the fire front)
-      while(pxl.burnt < fire.target.area){
+      while(fire.ncell.burnt < fire.target.area){
         
         ## Build a data frame with the theoretical 4 neighbours of cells in fire.front, 
         ## Add the wind direction and the distance.
@@ -212,8 +212,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
         
         ##Avoid fire overshooting at last iteration: Only burn cells with higher pb
         temp.burnt <- sprd.rate[sprd.rate$burning, c("cell.id", "pb")]
-        if(pxl.burnt+nrow(temp.burnt)>fire.target.area){
-          max.burnt <- fire.target.area - pxl.burnt
+        if(fire.ncell.burnt+nrow(temp.burnt)>fire.target.area){
+          max.burnt <- fire.target.area - fire.ncell.burnt
           temp.burnt <- temp.burnt[order(temp.burnt$pb, decreasing = TRUE),]
           def.burnt <- temp.burnt$cell.id[1:max.burnt]
           sprd.rate$burning <- (sprd.rate$cell.id %in% def.burnt)
@@ -233,8 +233,8 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
         fire.front <- sprd.rate$cell.id[sprd.rate$burning & sprd.rate$sr>=exclude.th]
         
         ## Increase area burnt (total and per fire)
-        track.burnt <- track.burnt + sum(sprd.rate$burning)
-        pxl.burnt <- pxl.burnt + sum(sprd.rate$burning)
+        zone.ncell.burnt <- zone.ncell.burnt + sum(sprd.rate$burning)
+        fire.ncell.burnt <- fire.ncell.burnt + sum(sprd.rate$burning)
         
         ## In the case, there are no cells in the fire front, stop trying to burn.
         ## This happens when no cells have burnt in the current spreading step
@@ -246,15 +246,15 @@ wildfires <- function(land, file.fire.regime, file.fire.sizes, sep.zones, baseli
       ## Write info about this fire
       track.fire <- rbind(track.fire, data.frame(zone=izone, fire.id, wind=fire.wind, 
                                                  target.size=fire.target.area*km2.pixel,
-                                                 burnt.size=pxl.burnt*km2.pixel))  
-      #  cat(paste("Fire:", fire.id, "- TargetSize:", fire.target.area, "- BurntPxls:", pxl.burnt), "\n")
+                                                 burnt.size=fire.ncell.burnt*km2.pixel))  
+      #  cat(paste("Fire:", fire.id, "- TargetSize:", fire.target.area, "- BurntPxls:", fire.ncell.burnt), "\n")
       
     }  # while 'zone burns'
   } #for 'zone'
   
     
   ## TRACKING
-  track.target <- track.target[-1,]
+  track.target <- track.target[-1]
   track.fire <- track.fire[-1,] 
   # Size (in km2) of each zone
   zone.size <- group_by(land, FRZone) %>% summarize(area=length(FRZone)*km2.pixel)

@@ -51,22 +51,25 @@ define.scenario <- function(scn.name){
   gcm.sep <- "GCM4_ESM2_10km"
   
   
-  ## FIRE parameters: distributions of fire regime per FRZone
-  file.fire.regime <- "inputfiles/FireRegime.txt"
-  file.fire.sizes <- "inputfiles/FireSizes.txt" 
+  ## FIRE parameters
+  ## In fire.regime, MFRI and max fire size (in km2); fire size (in km2) distribution per fire zone; 
+  ## SEP values and ratios per fire zone; and flammability of fuels per zone and fire size
+  fire.regime <-  read.table("inputfiles/FireRegime.txt", header=T)
+  fire.sizes <- read.table("inputfiles/FireSizes.txt", header=T)
   sep.zone <- read.table("inputfiles/SEPzone.txt", header=T)
   fuel.types.modif <- read.table("inputfiles/FuelTypeModif.txt", header=T)
   pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static" for a spatial but static 
                       # probability of fire ignition, or "dyn" for a dynamic probability of ignition derived from
                       # a empiric relation between ignitions and environmental / anthropic drivers.
-  is.fuel.modifier <- T
-  is.clima.modifier <- T
+  is.fuel.modifier <- T     # if T, fuels flammability modifies target burnt area
+  is.clima.modifier <- T    # if T, SEP ratio modifies target burnt area
   is.fuel.firesprd <- T
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
-  pb.upper.th <- 0.9 # prob.burning >= th --> cell always burns
-  pb.lower.th <- 0.1 # prob.burning < th --> cell never burns
+  pb.upper.th <- 0.75 # prob.burning >= th --> cell always burns
+  pb.lower.th <- -1 # prob.burning < th --> cell never burns
+  
   
   ## SPRUCE BUDWORM parameters:  
   sbw.step.fix <- T
