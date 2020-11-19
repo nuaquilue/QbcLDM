@@ -254,7 +254,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   
     
   ## TRACKING
-  track.target <- track.target[-1]
+  track.target <- track.target[-1,]
   track.fire <- track.fire[-1,] 
   # Size (in km2) of each zone
   zone.size <- group_by(land, FRZone) %>% summarize(area=length(FRZone)*km2.pixel)

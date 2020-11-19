@@ -138,9 +138,7 @@ read.state.vars <- function(work.path){
   ## The origin of any disturbance that may have impacted the study area is known.
   land$TSF <- 100
   land$TSSBW <- 100
-  land$TSCC <- land$Age
-  # land$TSPCut <- land$Age - (land$AgeMatu/2)   not sure if this formulation or the following one!!
-  
+  land$TSCcut <- land$Age
   
   ## 7.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.
@@ -150,9 +148,8 @@ read.state.vars <- function(work.path){
   land$Tcomp <- 50
   
   ## 7.3. Create a variable that records the time since the last partical cut
-  ## To all locations be selectable at t=0, assign as time since the last partial cut, 
-  ## half the age of maturity
-  land$TSPCut <- (land$AgeMatu %/% 10)/2*10
+  ## To all locations be selectable at t=0, assign as time since the last partial cut, half the age of maturity
+  land$TSPcut <- (land$AgeMatu %/% 10)/2*10
   
   ## 8. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
   ## reset factor's levels, and only eep cells that are not NA

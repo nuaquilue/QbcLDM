@@ -32,11 +32,11 @@ buffer.mig4 <- function(microland, target.cells.mig, potential.spp){
   nb.buff <- potential.spp[,3]
     
   # Source cells (i.e. potential colonizers) per species. Minimal age of 50 years.
-  micro.boj <- microland[microland$SppGrp=="BOJ" & microland$TSF >= 50 & microland$TSSBW >= 50 & microland$TSCC >= 50 & microland$Tcomp >= 50,]
-  micro.pet <- microland[microland$SppGrp=="PET" & microland$TSF >= 50 & microland$TSSBW >= 50 & microland$TSCC >= 50 & microland$Tcomp >= 50,]
-  micro.ers <- microland[microland$SppGrp=="ERS" & microland$TSF >= 50 & microland$TSSBW >= 50 & microland$TSCC >= 50 & microland$Tcomp >= 50,]
-  micro.epn <- microland[microland$SppGrp=="EPN" & microland$TSF >= 50 & microland$TSSBW >= 50 & microland$TSCC >= 50 & microland$Tcomp >= 50,]
-  micro.sab <- microland[microland$SppGrp=="SAB" & microland$TSF >= 50 & microland$TSSBW >= 50 & microland$TSCC >= 50 & microland$Tcomp >= 50,]
+  micro.boj <- microland[microland$SppGrp=="BOJ" & microland$Age>=50 & microland$Tcomp>=50,]
+  micro.pet <- microland[microland$SppGrp=="PET" & microland$Age>=50 & microland$Tcomp>=50,]
+  micro.ers <- microland[microland$SppGrp=="ERS" & microland$Age>=50 & microland$Tcomp>=50,]
+  micro.epn <- microland[microland$SppGrp=="EPN" & microland$Age>=50 & microland$Tcomp>=50,]
+  micro.sab <- microland[microland$SppGrp=="SAB" & microland$Age>=50 & microland$Tcomp>=50,]
   
   ### Calculate number of source populations in the neighbohood of each target cell. Colonization distances
   ### are species-specific.

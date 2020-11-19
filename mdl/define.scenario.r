@@ -19,7 +19,8 @@ define.scenario <- function(scn.name){
   out.path <- paste0("outputs/", scn.name)
 
   ## Time lenght in years of a model simulation
-  time.horizon <- 2095-2010  # 18 time steps of 5 years, it covers the period 2010-2099.
+  ## 18 time steps of 5 years, it covers the period 2010-2100.
+  time.horizon <- 2100-2010  
   year.ini <- 2010
   
   ## Time step
@@ -33,17 +34,13 @@ define.scenario <- function(scn.name){
   plot.fires <- FALSE
   
   ## Processes of the model included (TRUE-IN our FALSE-OUT),
-  ## Partial cuts and spruce budworm are deactivated in the current version.
-  processes <- c(TRUE,  # 1. Fire
-                 FALSE, # 2. Spruce budworm
-                 TRUE,  # 4. Clear cut
-                 TRUE)  # 5. Partial cut
+  is.wildfires <- TRUE
+  is.sbw <- FALSE
+  is.clearcut <- TRUE
+  is.partialcut <- TRUE
                  
-  ## Processes' identificator and recurrence (in years) 
-  fire.id <- 1; fire.step <- 5
-  sbw.id <- 2; sbw.step <- 30
-  cc.id <- 3; cc.step <- 5
-  pc.id <- 4; pc.step <- 5
+  ## Processes  recurrence (in years) 
+  fire.step <- cc.step <- pc.step <- time.step
   
   
   ## CLIMATE CHANGE parameters
@@ -72,7 +69,7 @@ define.scenario <- function(scn.name){
   
   
   ## SPRUCE BUDWORM parameters:  
-  sbw.step.fix <- T
+  # sbw.step.fix <- T
   
   
   ## FOREST MANAGEMENT parameters:
@@ -93,8 +90,8 @@ define.scenario <- function(scn.name){
   # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
   
   timber.supply <- "area.based"
-  lutte <- 0 # 1 = reboisement systématique des peuplements conifériens qui deviennent feuillus
-             # suite a une perturbation
+  lutte <- FALSE # TRUE = reboisement systématique des peuplements conifériens qui deviennent feuillus
+                 # suite a une perturbation
   
   
   ## VEGETATION DYNAMICS parameters:

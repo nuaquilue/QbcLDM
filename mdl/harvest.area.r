@@ -53,9 +53,9 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0 & Age>AgeMatu) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id) %>% 
+  s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5)) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id & Age>AgeMatu) %>% 
+  s.inc.mat.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5) & Age>AgeMatu) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   
   ## Also, look for zones at defforestation risk, both included and excluded
@@ -181,7 +181,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   land.uea$AgeMatuPC <- round(land.uea$AgeMatu,-1)/2
   
   ## Subset of harvestable (i.e. mature uneven-aged, ot recently partial cut) cells
-  land.rec.pc <- filter(land.uea, TSPCut >=AgeMatuPC )
+  land.rec.pc <- filter(land.uea, TSPcut >=AgeMatuPC )
   
   ## Get the number of cells to be managed under a partial-cut regime
   s.uea <- group_by(land.uea, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
