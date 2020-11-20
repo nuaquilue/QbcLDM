@@ -6,7 +6,7 @@
 ######################################################################################
 
 timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                          salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t){  
+                          salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
 
   cat("Timber supply even-aged stands in volume", "\n" )
              
@@ -40,10 +40,10 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
     
     # categories of burned area - young (cannot be salvaged) vs mature (can be salvaged)
     
-    s.inc.burnt     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$DistType == fire.id & land2$TSDist ==0 & is.na(land2$Exclus)])
-    s.inc.mat.burnt <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$DistType == fire.id & land2$TSDist ==0 & is.na(land2$Exclus)])
-    s.inc.kill     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$DistType == sbw.id & land2$TSDist %in% c(0,5) & is.na(land2$Exclus)])
-    s.inc.mat.kill <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$DistType == sbw.id & land2$TSDist %in% c(0,5) & is.na(land2$Exclus)])
+    s.inc.burnt     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$TSF ==0 & is.na(land2$Exclus)])
+    s.inc.mat.burnt <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$TSF & is.na(land2$Exclus)])
+    s.inc.kill     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
+    s.inc.mat.kill <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) & land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
     
     #print(paste("tordeuse",s.inc.kill,s.inc.mat.kill))
     

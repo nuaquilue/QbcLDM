@@ -41,10 +41,12 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
   ### les peuplements sont accessibles ? la coupe partielle 15 ans avant d'?tre matures
   
   vsc.cor.pc2 <- land.uea$Age <land.uea$AgeMatu
-  land.uea$TSPCut[vsc.cor.pc2] <- land.uea$Age[vsc.cor.pc2] - (land.uea$AgeMatuPC[vsc.cor.pc2]-15)
+  land.uea$TSPcut[vsc.cor.pc2] <- land.uea$Age[vsc.cor.pc2] - (land.uea$AgeMatuPC[vsc.cor.pc2]-15)
         
-  vsc.cor.pc <- land.uea$TSDist <land.uea$AgeMatu
-  land.uea$TSPCut[vsc.cor.pc] <- land.uea$TSDist[vsc.cor.pc] - (land.uea$AgeMatuPC[vsc.cor.pc]-15)
+      ### MATHIEU, here you were using the variable TSDist that is no longer in use
+      ### I guess TSF and/or TSCcut should be used but not sure. Just check!
+  vsc.cor.pc <- (land.uea$TSF <land.uea$AgeMatu) | (land.uea$TSCcut <land.uea$AgeMatu)
+  land.uea$TSPcut[vsc.cor.pc] <- land.uea$TSF[vsc.cor.pc] - (land.uea$AgeMatuPC[vsc.cor.pc]-15)
   #land.uea$vol.max <- volume(land.uea,km2.pixel)$x
   unit = 9351
   for(unit in unique(land.uea$MgmtUnit)){
@@ -59,7 +61,7 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
       for (j in 1:nrow(strate.fmu)){ # j=3
         age.mat.stra <- strate.fmu$AgeMatuPC[j]
         # extraire les TSPC pour la strate et l'UA courante
-        TSPCstrate <- land.uea$TSPCut[land.uea$MgmtUnit==unit & land.uea$AgeMatuPC==age.mat.stra] 
+        TSPCstrate <- land.uea$TSPcut[land.uea$MgmtUnit==unit & land.uea$AgeMatuPC==age.mat.stra] 
         # VOLUME: calcul des valeurs maximales en assumant que toutes les cellules sont a maturit?
         # seulement pour la strate et l'UA courante
         land.uea2 <- land.uea[land.uea$MgmtUnit==unit &land.uea$AgeMatuPC == age.mat.stra,]
@@ -77,7 +79,7 @@ timber.partial.volume <- function(land, hor.plan, km2.pixel, pc.step){
           
           recoltable[j,per+1] <- vol.act
           # pour chaque p?riode, on update l'?ge des peuplements pour la p?riopde suivante
-          land.uea2$TSPCut <- land.uea2$TSPCut + pc.step
+          land.uea2$TSPcut <- land.uea2$TSPcut + pc.step
         }
 
         for (per in (age.mat.stra/pc.step): hor.plan)

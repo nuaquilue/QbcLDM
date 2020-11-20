@@ -30,7 +30,7 @@
 ######################################################################################
 
 harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.PC.vol, 
-                      salvage.rate.event, harv.level, km2.pixel, fire.id, sbw.id, t){  
+                      salvage.rate.event, harv.level, km2.pixel, t){  
 
    
   #harv.level <- ref.harv.level
@@ -50,24 +50,21 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   
   ## For those locations that can be harvested (included), differentiate those that have been burnt or killed
   ## by an outbreak, and then count the young (cannot be salvaged) vs the mature (can be salvaged)
-  s.inc.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id) %>% 
+  s.inc.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist==0 & DistType==fire.id & Age>AgeMatu) %>% 
+  s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0 & Age>AgeMatu) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id) %>% 
+  s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5)) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSDist%in%c(0,5) & DistType==sbw.id & Age>AgeMatu) %>% 
+  s.inc.mat.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5) & Age>AgeMatu) %>% 
     group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   
   ## Also, look for zones at defforestation risk, both included and excluded
   reg.fail.ex <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                        TSDist==0, DistType==fire.id, Age<=50, !is.na(Exclus)) %>%
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+                        TSF==0, Age<=50, !is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
   reg.fail.inc <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                         TSDist==0, DistType==fire.id, Age<=50, is.na(Exclus)) %>%
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+                         TSF==0, Age<=50, is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
 
-  
   land2 <- mutate(land2, rndm=runif(nrow(land2)))
 
   even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
@@ -101,11 +98,8 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
     
     # Subset of harvestable (mature even-aged) cells
     land.ea.mat.u <- land.ea.u[land.ea.u$Age >= land.ea.u$AgeMatu,]
-
-    subland.salv.mature.burn <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & 
-                                            land.ea.u$DistType == fire.id & land.ea.u$TSDist ==0, ]
-    subland.salv.mature.sbw <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & 
-                                           land.ea.u$DistType == sbw.id & land.ea.u$TSDist %in% c(0,5), ]  
+    subland.salv.mature.burn <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & land.ea.u$TSF==0, ]
+    subland.salv.mature.sbw <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & land.ea.u$TSSBW %in% c(0,5), ]  
     subland.salv.mature <- rbind(subland.salv.mature.burn,subland.salv.mature.sbw)
     
     # sélection de cellules récupérables en tenant compte

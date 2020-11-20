@@ -28,7 +28,7 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
 
   land.uea <- land2[land2$even==0,]
   
-  land.uea2 <- land.uea[land.uea$TSPCut>=0,]
+  land.uea2 <- land.uea[land.uea$TSPcut>=0,]
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
   land.uea2$AgeMatuPC <- round(land.uea2$AgeMatu,-1)/2
@@ -82,7 +82,7 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
   
   ## Number of cells to harvest (sustained yield level), corresponding to 
   ## the future period with the lowest mature forest availability 
-  n.pc.cells <- data.frame(MgmtUnit=recoltable.s$MgmtUnit,
+  n.pc.cells <- data.frame(MgmtUnit=recoltable.s$MgmtUnit, 
                            x=round(apply(recoltable.s[,2:(hor.plan+1)], 1, min)))
 
 return(n.pc.cells)    

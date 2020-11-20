@@ -32,10 +32,9 @@ sbw.outbreak<- function(land, severity, km2.pixel){
   # three climatic levels, determined from SDM: highly favorable (1), moderately favorable (0.5), unfavorable (0)
   sbw.clim  <- ifelse(land$Temp> 0.5 & land$Temp < 2.8, 1, ifelse(land$Temp> -1.5 & land$Temp < 4, 0.3, 0))
   # three age levels: old (1), young (0.5), regen (0)
-  sbw.age  <- ifelse(land$TSD > 60 & land$TSF !=0 , 1, ifelse(land$TSD > 30 & land$TSF !=0, 0.8, 0.6))
+  sbw.age  <- ifelse(land$Age>60 & land$TSF!=0, 1, ifelse(land$Age>30 & land$TSF!=0, 0.8, 0.6))
   # three compositions, defined in the highly favorable zone: fir (0.5), EPN (0.15), others (0)
-  sbw.comp <- ifelse(land$SppGrp == "SAB", 0.4, 
-                            ifelse(land$SppGrp =="EPN", 0.05, 0))  
+  sbw.comp <- ifelse(land$SppGrp == "SAB", 0.4, ifelse(land$SppGrp =="EPN", 0.05, 0))  
 
   prob <- sbw.clim*sbw.age * sbw.comp * (severity) 
 

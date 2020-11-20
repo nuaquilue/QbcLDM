@@ -99,7 +99,9 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     
     ## 4. Modify target area based on climate projections
     if(is.clima.modifier & !is.na(clim.scn)){
-      if(t>=30 & t<60){
+      if(t<=30)
+        aux.track$brclima <- aux.track$brvar*1
+      if(t>30 & t<=60){
         zone.target.area <- zone.target.area*sep.zone.cc$rSEP1[sep.zone.cc$Zone==izone]
         aux.track$brclima <- aux.track$brvar*sep.zone.cc$rSEP1[sep.zone.cc$Zone==izone]
       }

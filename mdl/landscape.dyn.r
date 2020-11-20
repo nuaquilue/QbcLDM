@@ -89,14 +89,11 @@ landscape.dyn <- function(scn.name){
   track.fires <- data.frame(run=NA, year=NA, zone=NA, fire.id=NA, wind=NA, target.size=NA, burnt.size=NA)
   track.target <- data.frame(run=NA, year=NA, zone=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
   track.fuel <- data.frame(run=NA, year=NA, zone=NA, type=NA, pct=NA)
-  track.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
+  track.cut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
                            a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
-                           area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA,
-                           a.pcut=NA, v.pcut=NA)
-  track.spp.ccut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, spp.ccut=NA, spp.ccut.vol=NA,
-                               spp.pcut=NA, spp.pcut.vol=NA)
-  track.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, uneven.age=NA, s.mat=NA, s.rec.pc=NA)
-  track.spp.pcut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, x=NA)
+                           area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA, a.pcut=NA, v.pcut=NA)
+  track.spp.cut <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, spp.ccut=NA, spp.ccut.vol=NA,
+                                  spp.pcut=NA, spp.pcut.vol=NA)
   track.vol <- data.frame(run=NA, year=NA,  MgmtUnit=NA, SppGrp=NA, DistType=NA, x=NA)
     
   
@@ -218,7 +215,7 @@ landscape.dyn <- function(scn.name){
       if((t==time.seq[1] | replanif==1) & timber.supply=="area.based" & is.clearcut){
         # even-aged
           harv.level <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, fire.id, sbw.id, t)
+                      salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, t)
           TS.CC.area <- harv.level
         # uneven-aged
           harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
@@ -230,7 +227,7 @@ landscape.dyn <- function(scn.name){
         #source("mdl/timber.partial.volume.r")
         #source("mdl/timber.volume.r")
         TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t)
+                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t)
         TS.PC.vol <-timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
       }
       
@@ -240,12 +237,12 @@ landscape.dyn <- function(scn.name){
           
           #source("mdl/harvest.volume.r") 
           harv.out <- harvest.vol(land, cc.step, diff.prematurite, hor.plan, TS.CC.vol,TS.PC.vol,
-                              salvage.rate.event, harv.level, km2.pixel, fire.id, sbw.id, t)
+                              salvage.rate.event, harv.level, km2.pixel, t)
           cc.cells <- harv.out[[1]]
           pc.cells <- harv.out[[2]]
           if(nrow(harv.out[[3]])>0){
-            track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
-            track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
+            track.cut <- rbind(track.cut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
+            track.spp.cut <- rbind(track.spp.cut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
           }
           # Done with clear cuts
           land$TSPcut[land$cell.id %in% pc.cells] <- 0
@@ -256,14 +253,13 @@ landscape.dyn <- function(scn.name){
       
       if(timber.supply == "area.based" & is.clearcut & t %in% cc.schedule){      
           #source("mdl/harvest.area.r")
-          
-          harv.out <- harvest.area(land, cc.step, diff.prematurite, hor.plan, TS.CC.area,TS.PC.area,salvage.rate.FMU,
-                          salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed)
+          harv.out <- harvest.area(land, cc.step, diff.prematurite, hor.plan, TS.CC.area, TS.PC.area, salvage.rate.FMU,
+                                   salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed)
           cc.cells <- harv.out[[1]]
           pc.cells <- harv.out[[2]]
           if(nrow(harv.out[[3]])>0){
-            track.ccut <- rbind(track.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
-            track.spp.ccut <- rbind(track.spp.ccut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
+            track.cut <- rbind(track.cut, data.frame(run=irun, year=t+year.ini, harv.out[[3]]))
+            track.spp.cut <- rbind(track.spp.cut, data.frame(run=irun, year=t+year.ini, harv.out[[4]]))
            }
           # Done with clear cuts
           land$TSPcut[land$cell.id %in% pc.cells] <- 0
@@ -344,7 +340,7 @@ landscape.dyn <- function(scn.name){
       land$Age[land$cell.id %in% burnt.cells] <- 0
       land$Age[land$cell.id %in% kill.cells] <- 0
       land$Age[land$cell.id %in% cc.cells] <- 0
-      land$TSPCut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)  ## ¿?
+      land$TSPcut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$AgeMatu/2)  ## ¿?
       
 
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
@@ -394,8 +390,8 @@ landscape.dyn <- function(scn.name){
   
   
   cat("... writing outputs", "\n")
-  write.table(track.target[-1,], paste0(out.path, "/BurntRates.txt"), quote=F, row.names=F, sep="\t")
   if(is.wildfires){
+    write.table(track.target[-1,], paste0(out.path, "/BurntRates.txt"), quote=F, row.names=F, sep="\t")
     track.fire.regime[,8:9] <- round(track.fire.regime[,8:9], 2)     
     write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
     track.fires$rem <- track.fires$target.size-track.fires$burnt.size
@@ -406,10 +402,8 @@ landscape.dyn <- function(scn.name){
   write.table(track.spp.age.class[-1,], paste0(out.path, "/SppByAgeClass.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.suit.class[-1,], paste0(out.path, "/SuitabilityClasses.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.vol[-1,], paste0(out.path, "/Volume.txt"), quote=F, row.names=F, sep="\t")
-  write.table(track.ccut[-1,], paste0(out.path, "/ClearCut.txt"), quote=F, row.names=F, sep="\t")
-  track.spp.ccut <- track.spp.ccut[-1,] 
-  write.table(track.spp.ccut, paste0(out.path, "/ClearCutSpp.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.cut[-1,], paste0(out.path, "/Cuts.txt"), quote=F, row.names=F, sep="\t")
+  write.table(track.spp.cut[-1,], paste0(out.path, "/SppCut.txt"), quote=F, row.names=F, sep="\t")
   toc()
 } 
-
 

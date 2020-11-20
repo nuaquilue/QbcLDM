@@ -29,7 +29,7 @@
 ###  Value >  A vector of the indexes of the harvested cells.
 ######################################################################################
 
-harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS.PC.area, salvage.rate.FMU,
+harvest.area <- function(land, cc.step, diff.prematurite, hor.plan, TS.CC.area, TS.PC.area, salvage.rate.FMU,
                       salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed){  
 
    
@@ -216,8 +216,6 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   ################################################# TRACKING #################################################
   ## Area salvaged and non-salvaged, clearcut
   ## areas are in cells, volumes are in m3
-  
-  
   a.salv <- filter(land2, cell.id %in% cc.cells.salv.tot) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
   a.unaff <- filter(land2, cell.id %in% cc.cells.unaff.tot) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
   
@@ -230,23 +228,21 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
               group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) 
   ## Volume clearcut per species per management unit (clearcut)
   spp.ccut.vol <- filter(land2, cell.id %in% c(cc.cells.salv.tot, cc.cells.unaff.tot)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol)) 
+                  group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol)) 
   
   ## Area partial cut per management unit
-  a.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>% 
-    summarize(x=length(MgmtUnit)) 
+  a.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit)) 
   ## Volume partial cut per management unit
-  v.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>% 
-    summarize(x=sum(vol)) 
+  v.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>%  summarize(x=sum(vol)) 
 
-  ## Area clearcut per species per management unit (clearcut)
-  spp.pcut <- filter(land2, cell.id %in% c(pc.cells)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) 
-  ## Volume clearcut per species per management unit (clearcut)
-  spp.pcut.vol <- filter(land2, cell.id %in% c(pc.cells)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol))
+  ## Area partialcut per species per management unit (clearcut)
+  spp.pcut <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) 
+  ## Volume partialcut per species per management unit (clearcut)
+  spp.pcut.vol <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol))
      
   ## Merge all the info, FMU level
+  ## @@@@@@@@ MATHIEU, here the names of the variables area "area" but they are in fact NUMBER OF CELLS!
+  ## I don't change anything, but it is confusing ;-)
   track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat.pc, by="MgmtUnit") %>% 
            left_join(s.inc.burnt, by="MgmtUnit") %>% left_join(s.inc.mat.burnt, by="MgmtUnit") %>%
            left_join(s.inc.kill, by="MgmtUnit") %>% left_join(s.inc.mat.kill, by="MgmtUnit") %>%
@@ -260,12 +256,9 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.area,TS
   track[is.na(track)] <- 0
   
   #### merge, species level
-  
   spp.track <- left_join(spp.ccut, spp.ccut.vol, by=c("MgmtUnit", "SppGrp")) %>% 
-                           left_join(spp.pcut, by=c("MgmtUnit", "SppGrp")) %>%
-                                       left_join(spp.pcut.vol, by=c("MgmtUnit", "SppGrp"))
-  names(spp.track)[3:ncol(spp.track)] <- c("spp.ccut","spp.ccut.vol",
-                                   "spp.pcut","spp.pcut.vol")
+               left_join(spp.pcut, by=c("MgmtUnit", "SppGrp")) %>% left_join(spp.pcut.vol, by=c("MgmtUnit", "SppGrp"))
+  names(spp.track)[3:ncol(spp.track)] <- c("spp.ccut","spp.ccut.vol", "spp.pcut","spp.pcut.vol")
   spp.track[is.na(spp.track)] <- 0
   ## Return the cell.id of the cut locations and the tracking info
   return(list(cc.cells=cc.cells, pc.cells=pc.cells, track.cut=track, spp.track=spp.track))  

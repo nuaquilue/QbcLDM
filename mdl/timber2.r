@@ -32,7 +32,7 @@
 ######################################################################################
 
 timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, fire.id, sbw.id, t){  
+                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
 
   cat("Timber supply even aged stands - area", "\n" )
              
