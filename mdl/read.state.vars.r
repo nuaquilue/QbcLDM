@@ -15,8 +15,11 @@ read.state.vars <- function(work.path){
   ## Load required packages and functions 
   suppressPackageStartupMessages({
     library(rgdal)
+    library(RANN)
     library(foreign)
     library(raster)
+    library(rasterVis)
+    library(viridis)
     library(tidyverse)
   })
   
@@ -33,231 +36,203 @@ read.state.vars <- function(work.path){
   cell.size <- 2000 # in m
     
   
-  ## 1. Read data form the .dbf associated to the .shp layer
-  forest.data <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/points_2k2_ll.dbf"))
-  forest.data$X_COORD <- round(forest.data$X_COORD, 0)
-  forest.data$Y_COORD <- round(forest.data$Y_COORD, 0)  
+  ## 1. Read data from the .dbf with the most approximative map of the province
+  forest.data <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/exp_LDM_v1.dbf"))
   
-  
-  ## 2. Read the new fire regime zones, transform to the .dbf projections and overlap
-  first.time <- T
-  if(first.time){
-    ZONES <- readOGR(paste0(work.path, "DataIn/ZonageFeux/2020.06.02/zones_nuria.shp"))
-    ZONESp <- spTransform(ZONES, CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
-                    +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
-    points <- SpatialPoints(forest.data[,2:3],  CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
-                    +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
-    aux <- data.frame(points, over(points, ZONESp)) %>% dplyr::select(-x)
-    names(aux)[3] <- "FRZ"
-    forest.data <- left_join(forest.data, aux,  by = c("X_COORD", "Y_COORD"))
-    rm(aux)
-    save(forest.data, file=paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
-  }
-  load(paste0(work.path, "QbcLDM/inputlyrs/dbf/forest.data.rdata"))
-  
-  
-  ## 3. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
+  ## 2. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
   ## Fix first cell size (in m)
   ## Note that the points.shp is +proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0 
-  ## But the coordinates of the dbf is in the following projection
-  MASK <- rasterFromXYZ(data.frame(forest.data[,2:3], z=1), res=c(cell.size, cell.size), digits=0,
-                    crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
-                    +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  ## But the coordinates of the dbf is in the following projection:
+  # crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0
+  #                   +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  MASK <- rasterFromXYZ(data.frame(forest.data[,1:2], z=1), res=c(cell.size, cell.size), digits=0,
+                        crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0
+                             +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+    # sum(MASK[], na.rm=T) # 185.479
+    # levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
   
-
-  ## 4. Build a data frame with cell.id, mask values (1, NA) and raster coordinates 
+  
+  ## 3. Search for, check and remove duplicates
+  forest.data$XY <- paste0(forest.data$XCOO,"_",forest.data$YCOO)
+  # Remove duplicates
+  a <- duplicated(forest.data$XY) 
+  # dupli <- forest.data[which(a),]
+  # for(i in 1:nrow(dupli)){
+  #   r <- filter(forest.data, XCOO==dupli[i,1], YCOO==dupli[i,2])
+  #   print(r)
+  # }
+  forest.data <- forest.data[-which(a),] %>% select(XY)
+  
+  
+  ## 4. Read data from the dbf with more fields informed and traspass to forest.data
+  forest.info <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/exp_LDM_v2.dbf")) %>% 
+                 mutate(XY = paste0(XCOO, "_", YCOO))
+  a <- duplicated(forest.info$XY) 
+  forest.info <- forest.info[-which(a),] 
+  forest.data <- left_join(forest.data, forest.info, by="XY")
+  
+  
+  ## 5. Build a data frame with cell.id, mask values (1, NA) and raster coordinates 
   ## Then join the forest data 
   dta <- data.frame(cell.id = 1:ncell(MASK), mask=MASK[], round(coordinates(MASK),0)) %>%
-         left_join(dplyr::select(forest.data, UNIQUE_ID, X_COORD, Y_COORD, UH_REG2, TECO2, TEMPE, PRECI, 
-                          COMPO2, TSD, DEP3, EXCLU, UAF18, MATU, FRZ, DOM,ECOTYPE), 
-                   by=c("x"="X_COORD", "y"="Y_COORD"))
+         left_join(forest.data, by=c("x"="XCOO", "y"="YCOO")) %>% filter(!is.na(mask))
   
   
-  ## 5. Build the 'land' data frame with forest data and fire regime zone, bioclimatic domain, 
-  ## temperature, precipitation, management unit, species group, time since disturbance,
-  ## type of soil (depot), and type of exclusion (plantation / protected) 
+  ## 6. Build the 'land' data frame with forest data and fire regime zone, 
+  ## temperature, precipitation, management unit, species group, age, maturity age,
+  ## type of soil, and type of exclusion (plantation / protected) 
   land <- data.frame(cell.id = dta$cell.id,
                      x = dta$x,
                      y = dta$y,
-                     FRZone = dta$FRZ,
-                     BCDomain = ifelse(is.na(substr(dta$DOM,1,1)), NA, paste0("D", substr(dta$DOM,1,1))),
-                     Temp = dta$TEMPE,
-                     Precip = dta$PRECI,
-                     MgmtUnit = dta$UAF18,
-                     SppGrp = sub("BOP", "OthDT", sub("ter_co", "NonFor",  sub("EAU", "Water", dta$COMPO2))),
-                     EcoType = substr(dta$TECO2,0,2),
-                     EcoType2 = as.character(dta$ECOTYPE),
-                     Age = dta$TSD,
-                     SoilType = sub("argile", "A", sub("organ", "O", sub("roc", "R", sub("sable", "S", sub("till", "T", sub("aut", "Urb", dta$DEP3)))))),
-                     Exclus = dta$EXCLU,
-                     AgeMatu = dta$MATU)  
+                     temp = dta$temp,
+                     prec = dta$prec,
+                     frz = dta$FRZ,
+                     eco.type = dta$TYPE_ECO,
+                     mgmt.unit = dta$UAwww,
+                     spp = dta$GRESS4corr,
+                     age = dta$AGE_CORR,
+                     age.matu = dta$matu,
+                     soil.type = dta$DEP_QLDM,
+                     exclus = dta$exclus)  
+
+  # # Missing FRZ when spp is informed
+  # aux <- select(land, spp, frz)
+  # aux$frz[!is.na(aux$frz)] <- "A"
+  # aux$frz[is.na(aux$frz) & !is.na(aux$spp)] <- "B"
+  # MAP <- MASK
+  # MAP[!is.na(MAP[])] <- aux$frz
+  # levelplot(MAP, margin=FALSE, colorkey=T, par.settings=viridisTheme())
+  
+  # # Missing MgmtUnit when spp is informed
+  # aux <- select(land, spp, mgmt.unit)
+  # aux$mgmt.unit[aux$mgmt.unit!="AGNA"] <- "1171"
+  # aux$mgmt.unit[aux$mgmt.unit=="AGNA" & is.na(aux$spp)] <- "2471"
+  # aux$mgmt.unit[aux$mgmt.unit=="AGNA" & !is.na(aux$spp)] <- "2661"
+  # MAP <- MASK
+  # MAP[!is.na(MAP[])] <- aux$mgmt.unit
+  # levelplot(MAP, margin=FALSE, colorkey=T, par.settings=viridisTheme())
+  
+  ## 7. Reclassify regenerating stands according to the composition within a 10 km circular neigbhorhood
+  ## or the ecological type
+  land$spp[!is.na(land$spp) & land$spp=="rege"] <- neighour.spp(land, radius.neigh=10000, cell.size)
+  land$spp <- factor(land$spp)      # remove the 'rege' level 
+  ## Species: BOJ - Yellow birch
+  ##          BOP - White birch
+  ##          EPN - Black spruce
+  ##          ERS - Sugar maple
+  ##          OTH.FEU.N - Other deciduous  boreal                
+  ##          OTH.FEU.S - Other deciduous temperate
+  ##          OTH.RES.N - Other conifer boreal
+  ##          OTH.RES.S - Other conifer temperate
+  ##          PET - Trembling aspen
+  ##          SAB - Balsam fir
+
+  
+  ## 8. Assign mean precipitation and temperature of the 8 neigh cells to those cells with non informed values
+  zcells <- filter(land, !is.na(spp) & is.na(temp) & is.na(prec))
+  for(id in zcells$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
+    values <- land$temp[neighs$nn.idx]
+    values <- values[!is.na(values)]
+    if(length(values)>0)
+      zcells$temp[zcells$cell.id==id] <- mean(values)
+    values <- land$prec[neighs$nn.idx]
+    values <- values[!is.na(values)]
+    if(length(values)>0)
+      zcells$prec[zcells$cell.id==id] <- mean(values)
+  }
+  land$temp[!is.na(land$spp) & is.na(land$temp)] <- zcells$temp
+  land$prec[!is.na(land$spp) & is.na(land$prec)] <- zcells$prec
   
   
-  ## 6. Do some cleaning and customizations at the initial data:
-  ## 6.1. Reclassify regenerating stands according to the composition of the neigbhour and
-  ## the site's ecological type. 
-  land$SppGrp[!is.na(land$SppGrp) & land$SppGrp=="rege"] <- 
-              neighour.spp(land, target.cells=land[!is.na(land$SppGrp) & land$SppGrp=="rege", c("cell.id", "x", "y")],
-              radius.neigh=10000, km2.pixel=(cell.size/1000)^2)
-  
-  ## 6.2. Remove "EcoType" and "other", as these are not anymore needed 
-  land <- select(land, -EcoType)
-  
-  ## 6.3. Clean Age to be suitable for the model
-  land$Age[land$Age==-99] <- -1
-  ## Re-equilibrate the age class distribution of locations with age <= 20 years
-  ## to compensate for a lack of precision in the initial values of regenerating stands 
-  ## (due to the state of forest inventories in Québec)
-  ## Do not change age of 3 FMU that already have 5y precision: 2371, 2471, and 2571
-  selection <- !is.na(land$Age) & land$Age<=20 & land$MgmtUnit %notin% c(2371, 2471, 2571) 
-  land$Age[selection] <-  sample(c(0,5,10,15,20), sum(selection), replace=T)
-  ## Randomize ages 30, 50, 70 and 90
-  selection <- !is.na(land$Age) & land$Age %in% c(30,50,70,90) & land$MgmtUnit %notin% c(2371, 2471, 2571) 
-  land$Age[selection] <-  land$Age[selection] + sample(c(-5,0,5,10), sum(selection), replace=T)
-  ## Randomize ages 120 and 200
-  selection <- !is.na(land$Age) & land$Age %in% c(120,200) & land$MgmtUnit %notin% c(2371, 2471, 2571) 
-  land$Age[selection] <-  land$Age[selection] + sample(c(-10,0,10,20), sum(selection), replace=T)
-  ## Make sure that the age classes are presented in 5-year increments
-  land$Age <- round(land$Age/time.step)*time.step
-  
-  ## 6.4. Modify maturity
-  land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("ERS", "BOJ")] <- 105
-  land$AgeMatu[is.na(land$AgeMatu) & land$SppGrp %in% c("PET")] <- 65
-  land$AgeMatu[is.na(land$AgeMatu) & land$Temp < -1] <- 80
-  land$AgeMatu[is.na(land$AgeMatu) & land$Temp > 1]  <- 65
-  land$AgeMatu[is.na(land$AgeMatu)] <- 70
-  land$AgeMatu[land$AgeMatu < 60] <- 60
-  land$AgeMatu[land$AgeMatu > 100 ] <- 100    
-  
-  ## 6.5. Assign "T" to missing surficial deposits
-  land$SoilType[!is.na(land$SppGrp) & is.na(land$SoilType)] <- "T"
+  ## 9. Assign most abundant age of the 8 / 24 neigh cells to those cells with non informed values
+  zcells <- filter(land, !is.na(spp) & is.na(age))
+  for(id in zcells$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
+    values <- land$age[neighs$nn.idx]
+    values <- values[!is.na(values)]
+    if(length(values)>0)
+      zcells$age[zcells$cell.id==id] <- names(which.max(table(values)))
+  }
+  land$age[!is.na(land$spp) & is.na(land$age)] <- zcells$age
+  zcells2 <- filter(land, !is.na(land$spp) & is.na(age))
+  for(id in zcells2$cell.id){
+    neighs <- nn2(select(land, x, y), filter(zcells2, cell.id==id) %>% select(x,y), searchtype="priority", k=25)
+    values <- land$age[neighs$nn.idx]
+    values <- values[!is.na(values)]
+    if(length(values)>0)
+      zcells2$age[zcells2$cell.id==id] <- names(which.max(table(values)))
+  }
+  land$age[!is.na(land$spp) & is.na(land$age)] <- zcells2$age
   
   
-  ## 7. Initialize other state variables
-  ## 7.1. Initalize the 4 time since last disturbance variables
+  ## 10. Assign FRZ to those forest cells without FRZ informed
+  zcells <- filter(land, !is.na(spp) & is.na(frz))
+  r <- 3
+  while(nrow(zcells)>0){
+    neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
+    values <- matrix(land$frz[neighs$nn.idx], ncol=r^2)
+    land$frz[!is.na(land$spp) & is.na(land$frz)] <- apply(values, 1, find.frz)
+    zcells <- filter(land, !is.na(spp) & is.na(frz))
+    r <- r+2
+  }
+  
+  
+  ## 11. Assign "T" to missing soil types
+  land$soil.type[!is.na(land$spp) & land$soil.type=="-"] <- "T"
+  
+  
+  ## 12. Initialize other state variables
+  ## 12.1. Initalize the 4 time since last disturbance variables
   ## The origin of any disturbance that may have impacted the study area is known.
   land$TSF <- 100
   land$TSSBW <- 100
-  land$TSCcut <- land$Age
+  land$TSCcut <- land$age
   
-  ## 7.2. Create a variable that records the time since the last change in forest composition 
+  ## 12.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.
   ## A cell will be considered potential "source" population for migration and range expansion 
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$Tcomp <- 50
   
-  ## 7.3. Create a variable that records the time since the last partical cut
+  ## 12.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, half the age of maturity
-  land$TSPcut <- (land$AgeMatu %/% 10)/2*10
-  
-  ## 8. Mask cells that are 'Water' or 'Urb' (urban areas, infrastructures or even croplands), 
-  ## reset factor's levels, and only eep cells that are not NA
-  land[!is.na(land$SppGrp) & land$SppGrp=="Water", -c(1:3)] <- NA
-  land[!is.na(land$SoilType) & land$SoilType == "Urb", -c(1:3)] <- NA
-  land$SppGrp <- factor(land$SppGrp)      # remove the 'water' level (and the 'rege' level too)
-  land$SoilType <- factor(land$SoilType)  # remove the 'urb' level
-    ## Species groups are:  BOJ - Yellow birch
-    ##                      EPN - Black spruce
-    ##                      ERS - Sugar maple
-    ##                      NonFor - Non forest
-    ##                      OthCB - Other conifer boreal                
-    ##                      OthCT - Other conifer temperate
-    ##                      OthDB - Other deciduous boreal
-    ##                      OthDT - Other deciduous temperate
-    ##                      PET - Trembling aspen
-    ##                      SAB - Balsam fir
+  land$TSPcut <- (land$age.matu %/% 10)/2*10
   
   
-  ## 9. Assign mean precipitation of the 8 neigh cells to those cells with Precip=-9999
-  z <- -9999
-  zcells <- filter(land, !is.na(land$SppGrp) & Temp==z)
-  for(id in zcells$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
-    values <- land$Temp[neighs$nn.idx]
-    values <- values[!is.na(values) & values!=z]
-    if(length(values)>0)
-      zcells$Temp[zcells$cell.id==id] <- mean(values)
-  }
-  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells$Temp
-  zcells2 <- filter(land, !is.na(land$SppGrp) & Temp==z)
-  for(id in zcells2$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells2, cell.id==id) %>% select(x,y), searchtype="priority", k=25)
-    values <- land$Temp[neighs$nn.idx]
-    values <- values[!is.na(values) & values!=z]
-    if(length(values)>0)
-      zcells2$Temp[zcells2$cell.id==id] <- mean(values)
-  }
-  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells2$Temp
-  zcells3 <- filter(land, !is.na(land$SppGrp) & Temp==z)
-  for(id in zcells3$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells3, cell.id==id) %>% select(x,y), searchtype="priority", k=11^2)
-    values <- land$Temp[neighs$nn.idx]
-    values <- values[!is.na(values) & values!=z]
-    if(length(values)>0)
-      zcells3$Temp[zcells3$cell.id==id] <- mean(values)
-  }
-  land$Temp[!is.na(land$SppGrp) & land$Temp==z] <- zcells3$Temp
-  zcells4 <- filter(land, !is.na(land$SppGrp) & Temp==z)
-  
-  
-  ## 10. Assign FRZ to those forest cells without FRZ informed
-  zcells <- filter(land, !is.na(land$SppGrp) & is.na(FRZone))
-  for(id in zcells$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
-    values <- land$FRZone[neighs$nn.idx]
-    values <- values[!is.na(values)]
-    if(length(values)>0)
-      zcells$FRZone[zcells$cell.id==id] <- names(which.max(table(values)))
-  }
-  land$FRZone[!is.na(land$SppGrp) & is.na(land$FRZone)] <- zcells$FRZone
-  zcells2 <- filter(land, !is.na(land$SppGrp) & is.na(FRZone))
-  for(id in zcells2$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells2, cell.id==id) %>% select(x,y), searchtype="priority", k=25)
-    values <- land$FRZone[neighs$nn.idx]
-    values <- values[!is.na(values)]
-    if(length(values)>0)
-      zcells2$FRZone[zcells2$cell.id==id] <- names(which.max(table(values)))
-  }
-  land$FRZone[!is.na(land$SppGrp) & is.na(land$FRZone)] <- zcells2$FRZone
-  zcells3 <- filter(land, !is.na(land$SppGrp) & is.na(FRZone))
-  for(id in zcells3$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells3, cell.id==id) %>% select(x,y), searchtype="priority", k=11^2)
-    values <- land$FRZone[neighs$nn.idx]
-    values <- values[!is.na(values)]
-    if(length(values)>0)
-      zcells3$FRZone[zcells3$cell.id==id] <- names(which.max(table(values)))
-  }
-  land$FRZone[!is.na(land$SppGrp) & is.na(land$FRZone)] <- zcells3$FRZone
-  zcells4 <- filter(land, !is.na(land$SppGrp) & is.na(FRZone))
-  
-  
-  ## 11. Save the MASK raster in a .rdata 
-  MASK[is.na(land$SppGrp)] <- NA
-  save(MASK, file="inputlyrs/rdata/mask.rdata")
-  
-  ## 12. Give raster structure to each state variable to be saved in a layer stack 
-  MASK[] <- land$FRZone; FRZone <- MASK
-  MASK[] <- land$BCDomain; BCDomain <- MASK
-  MASK[] <- land$MgmtUnit; MgmtUnit <- MASK
-  MASK[] <- land$SppGrp; SppGrp <- MASK
-  MASK[] <- land$Age; Age <- MASK
-  MASK[] <- land$Temp; Temp <- MASK
-  MASK[] <- land$Precip; Precip <- MASK
-  MASK[] <- land$SoilType; SoilType <- MASK
-  MASK[] <- land$Exclus; Exclus <- MASK
-  MASK[] <- land$AgeMatu; AgeMatu <- MASK
-  MASK[] <- land$EcoType2; EcoType2 <- MASK
-  sp.input <- list(FRZone=FRZone, BCDomain=BCDomain, MgmtUnit=MgmtUnit,
-                   SppGrp=SppGrp, Age=Age, Temp=Temp, Precip=Precip,
-                   SoilType=SoilType, Exclus=Exclus, AgeMatu=AgeMatu,EcoType2=EcoType2) 
+  ## 13. Give raster structure to each state variable to be saved in a layer stack 
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$frz; FRZone <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$mgmt.unit; MgmtUnit <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$spp; SppGrp <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$age; Age <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$temp; Temp <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$prec; Precip <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$soil.type; SoilType <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$exclus; Exclus <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$age.matu; AgeMatu <- MAP
+  MAP <- MASK; MAP[!is.na(MAP[])] <- land$eco.type; EcoType <- MAP
+  sp.input <- list(FRZone=FRZone, MgmtUnit=MgmtUnit, SppGrp=SppGrp, Age=Age, Temp=Temp, Precip=Precip,
+                   SoilType=SoilType, Exclus=Exclus, AgeMatu=AgeMatu, EcoType=EcoType) 
   save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
     
   
-  ## 13. Keep only cells that are not NA and save the 'land' data frame with all state variables
-  land <- land[!is.na(land$SppGrp),]
+  ## 14. Save the MASK raster in a .rdata with NA everywhere species is not informed
+  dta <- data.frame(cell.id = 1:ncell(MASK)) %>% left_join(land, by="cell.id")
+  MASK[is.na(dta$spp)] <- NA
+  levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
+  save(MASK, file="inputlyrs/rdata/mask.rdata")
+  
+  
+  ## 15. Keep only cells that are not NA and save the 'land' data frame with all state variables
+  land <- land[!is.na(land$spp),]
   save(land, file="inputlyrs/rdata/land.rdata")
   
 }
 
 
+find.frz <- function(x){
+  a <-  names(which.max(table(x)))
+  a <- ifelse(is.null(a), NA, a)
+  return(a)
+}

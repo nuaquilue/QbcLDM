@@ -57,22 +57,14 @@ play.change.spinput.resol <- function(){
 
 
 write.plot.sp.input <- function(){
-  rm(list=ls())
-  setwd("C:/work/qbcmod/QbcLDM")
   load(file="inputlyrs/rdata/sp.input.rdata")
-  writeRaster(sp.input$FRZone, "inputlyrs/asc/FRZone.asc", format="ascii", overwrite=T)
-  writeRaster(sp.input$BCDomain, "inputlyrs/asc/BCDomain.asc", format="ascii", overwrite=T)
-  writeRaster(sp.input$MgmtUnit, "inputlyrs/asc/MgmtUnit.asc", format="ascii", overwrite=T)    
-  writeRaster(sp.input$SppGrp, "inputlyrs/asc/SppGrp_t0.asc", format="ascii", overwrite=T)    
-  writeRaster(sp.input$Age, "inputlyrs/asc/Age_t0.asc", format="ascii", overwrite=T)    
-  plot(sp.input$FRZone)
-  plot(sp.input$BCDomain)
-  plot(sp.input$MgmtUnit)
-  plot(sp.input$SppGrp)
-  plot(sp.input$Temp)
-  plot(sp.input$Precip)
-  plot(sp.input$SoilType)
-  plot(sp.input$Exclus)
+  levelplot(sp.input$FRZone, margin=FALSE, colorkey=T, par.settings=magmaTheme())
+  levelplot(sp.input$MgmtUnit, margin=FALSE, colorkey=T, par.settings=plasmaTheme())
+  levelplot(sp.input$SppGrp, margin=FALSE, colorkey=T, par.settings=plasmaTheme())
+  levelplot(sp.input$Temp, margin=FALSE, colorkey=T, par.settings=viridisTheme())
+  levelplot(sp.input$Precip, margin=FALSE, colorkey=T, par.settings=viridisTheme())
+  levelplot(sp.input$SoilType, margin=FALSE, colorkey=T, par.settings=magmaTheme())
+  levelplot(sp.input$Exclus, margin=FALSE, colorkey=T, par.settings=magmaTheme())
 }
 
 
