@@ -381,8 +381,18 @@ landscape.dyn <- function(scn.name){
       if(write.sp.outputs){
         MAP <- MASK
         cat("... writing output layers", "\n")
-        MAP[!is.na(MASK[])] <- land$DistType*(land$TSDist==time.step)  
-        writeRaster(MAP, paste0(out.path, "/lyr/DistType_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
+        MAP[!is.na(MASK[])] <- land$SppGrp
+        writeRaster(MAP, paste0(out.path, "/lyr/SppGrp_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
+        MAP[!is.na(MASK[])] <- land$Age
+        writeRaster(MAP, paste0(out.path, "/lyr/Age_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
+        if(is.clearcut){
+          MAP[!is.na(MASK[])] <- land$TSCcut
+          writeRaster(MAP, paste0(out.path, "/lyr/TSCcut_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)  
+        }
+        if(is.wildfires){
+          MAP[!is.na(MASK[])] <- land$TSF
+          writeRaster(MAP, paste0(out.path, "/lyr/TSF_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
+        }
       }
       
     } # t

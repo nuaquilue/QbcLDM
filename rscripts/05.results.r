@@ -1,4 +1,4 @@
-########## PROBABILITY OF IGNITION
+#################################### PROBABILITY OF IGNITION ####################################
 library(viridis)
 load(file="inputlyrs/rdata/mask.rdata")
 load(file="inputlyrs/rdata/pigni_static.rdata")
@@ -7,7 +7,7 @@ MAP[!is.na(MASK[])] <- pigni$p
 plot(MAP, col=plasma(4))
 
 
-############ BURNT RATES
+#################################### BURNT RATES ################################################
 library(tidyverse)
 scn <- "Test_rcp85.fires.cuts"
 br <- read.table(paste0("outputs/", scn, "/BurntRates.txt"), header=T)
@@ -32,7 +32,7 @@ ggplot(data=fuel, aes(x=year, y=pct, colour=zone, linetype=type)) +
 dev.off()
 
 
-############ Compare target areas
+#################################### Compare target areas ####################################
 scn <- "Test_rcp85.fires"
 brf <- read.table(paste0("outputs/", scn, "/BurntRates.txt"), header=T)
 brf$scn <- "fire"
@@ -50,7 +50,7 @@ dev.off()
 
 
 
-############ Compare harvest levels
+#################################### Compare harvest levels ####################################
 scn <- "Test_rcp85.cuts.replanif0"
 cut0 <- read.table(paste0("outputs/", scn, "/Cuts.txt"), header=T)
 cut0$scn <- "cut.replan0"
@@ -89,3 +89,56 @@ area.cut.one <- rbind(cut, cutfire) %>% select(scn, year, MgmtUnit, area.salvage
 ggplot(data=area.cut.one, aes(x=year, y=area, colour=scn)) + 
   geom_line(size=1.2) + theme_classic() + scale_color_brewer(palette="Set1")
 
+
+
+#################################### PLOT raster ####################################
+library(rasterVis)
+library(raster)
+library(tidyverse)
+TSC <- raster("C:/WORK/QBCMOD/QbcLDM/outputs/Test_rcp85.cuts.replanif1/lyr/TSCcut_r1t90.tif")
+tsc <- TSC[]
+# tsc[!is.na(tsc) & tsc<=90] <- 1
+tsc[!is.na(tsc) & tsc>90] <- 0
+TSC[] <- tsc
+TSC@extent@xmin = TSC@extent@xmin / 1000
+TSC@extent@xmax = TSC@extent@xmax / 1000
+TSC@extent@ymin = TSC@extent@ymin / 1000
+TSC@extent@ymax = TSC@extent@ymax / 1000
+myTheme <- viridisTheme()
+myTheme$regions$col[1] <- "grey95"
+
+levelplot(TSC, margin=FALSE, colorkey=list(space="bottom"), 
+          par.settings=myTheme, main="Time since clear-cuts")
+
+
+TSF <- raster("C:/WORK/QBCMOD/QbcLDM/outputs/Test_wildfires/lyr/TSF_r1t90.tif")
+tsf <- TSF[]
+# tsc[!is.na(tsc) & tsc<=90] <- 1
+tsf[!is.na(tsf) & tsf>90] <- 0
+TSF[] <- tsf
+TSF@extent@xmin = TSF@extent@xmin / 1000
+TSF@extent@xmax = TSF@extent@xmax / 1000
+TSF@extent@ymin = TSF@extent@ymin / 1000
+TSF@extent@ymax = TSF@extent@ymax / 1000
+myTheme <- magmaTheme()
+myTheme$regions$col[1] <- "grey95"
+levelplot(TSF, margin=FALSE, colorkey=list(space="bottom"), 
+          par.settings=myTheme, main="Time since fires")
+
+
+AGE <- raster("C:/WORK/QBCMOD/QbcLDM/outputs/Test_nothing/lyr/Age_r1t90.tif")
+AGE@extent@xmin = AGE@extent@xmin / 1000
+AGE@extent@xmax = AGE@extent@xmax / 1000
+AGE@extent@ymin = AGE@extent@ymin / 1000
+AGE@extent@ymax = AGE@extent@ymax / 1000
+levelplot(AGE, margin=FALSE, colorkey=list(space="bottom"), par.settings=BTCTheme(), main="Forest Age")
+
+
+SPP <- raster("C:/WORK/QBCMOD/QbcLDM/outputs/Test_nothing/lyr/SppGrp_r1t90.tif")
+SPP@extent@xmin = SPP@extent@xmin / 1000
+SPP@extent@xmax = SPP@extent@xmax / 1000
+SPP@extent@ymin = SPP@extent@ymin / 1000
+SPP@extent@ymax = SPP@extent@ymax / 1000
+myPal <- RColorBrewer::brewer.pal('Set1', n=10)
+myTheme <- rasterTheme(region = myPal)
+levelplot(SPP, margin=FALSE, colorkey=list(space="bottom"),  par.settings=myTheme, main="Species groups")

@@ -4,15 +4,15 @@ play.landscape.dyn <- function(){
   setwd("C:/work/qbcmod/QbcLDM")
   source("mdl/define.scenario.r")
   source("mdl/landscape.dyn.r")  
-  scn.name <- "Test_rcp85.cuts.replanif1"
+  scn.name <- "Test_nothing"
   define.scenario(scn.name)
   nrun <- 1
-  write.sp.outputs <- F
+  write.sp.outputs <- T
   clim.scn <- "rcp85"
   is.wildfires <- F
   is.sbw <- F
-  is.clearcut <- T
-  is.partialcut <- T
+  is.clearcut <- F
+  is.partialcut <- F
   replanif <- 1
   pigni.opt <- "static.exp"
   dump(c("nrun",  "write.sp.outputs", "clim.scn", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
