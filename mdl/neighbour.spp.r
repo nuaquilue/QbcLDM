@@ -45,13 +45,14 @@ neighour.spp <- function(land, radius.neigh, cell.size){
     cells.neigh[i,] <- table(land$spp[nn.indx[i,]])
   cells.neigh <- as.data.frame(cells.neigh)
   names(cells.neigh) <- levels(land$spp)
-  cells.neigh <- select(cells.neigh, -rege)
+  cells.neigh <- select(cells.neigh, -rege, -NonFor)
   tot <- apply(cells.neigh, 1, sum)
   
   ## Select a community for the site in regeneration for those sites with some spp in the neighborhood
   indx <- 1:nrow(target.cells)
   indx.with <- indx[tot!=0]
   indx.without <- indx[tot==0]
+  spp <- spp[spp!="NonFor"]
   for(j in indx.with){
     id <- sample(1:length(spp), 1, replace=FALSE, prob=cells.neigh[j,])
     target.spp[j] <- spp[id]
@@ -65,8 +66,8 @@ neighour.spp <- function(land, radius.neigh, cell.size){
                                ifelse(eco.type=="MA" | eco.type=="RC" | eco.type=="RE" | eco.type=="TO", "OTH.RES.N",
                                    ifelse(eco.type=="RB" | eco.type=="RP" | eco.type=="RT", "OTH.RES.S", 
                                        ifelse(eco.type=="MJ", "BOJ",
-                                              ifelse(eco.type=="FE", "ERS", 
-                                                     ifelse(eco.type=="FC" | eco.type=="FO" | eco.type=="LA" | eco.type=="LL" | eco.type=="MF", "OTH.FEU.S", NA))))))))
+                                          ifelse(eco.type=="FE", "ERS", 
+                                             ifelse(eco.type=="FC" | eco.type=="FO" | eco.type=="LA" | eco.type=="LL" | eco.type=="MF", "OTH.FEU.S", NA))))))))
   target.spp[indx.without] <- aux$new.spp
   target.spp[is.na(target.spp)] <- "EPN"
   

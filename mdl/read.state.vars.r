@@ -28,16 +28,13 @@ read.state.vars <- function(work.path){
   ## sites in regeneration
   source("mdl/neighbour.spp.r")
   
-  ## Function to select items not in a vector
-  `%notin%` <- Negate(`%in%`)
-  
   ## Model's global parameters
   time.step <- 5
   cell.size <- 2000 # in m
     
   
-  ## 1. Read data from the .dbf with the most approximative map of the province
-  forest.data <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/exp_LDM_v1.dbf"))
+  ## 1. Read data from the .dbf 
+  forest.data <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/exp_LDM_v3.dbf"))
   
   ## 2. Build a Raster object from the X and Y coordinates and a dummy variable Z=1 
   ## Fix first cell size (in m)
@@ -48,8 +45,8 @@ read.state.vars <- function(work.path){
   MASK <- rasterFromXYZ(data.frame(forest.data[,1:2], z=1), res=c(cell.size, cell.size), digits=0,
                         crs="+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0
                              +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
-    # sum(MASK[], na.rm=T) # 185.479
-    # levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
+     # sum(MASK[], na.rm=T) # 185.479
+     # levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
   
   
   ## 3. Search for, check and remove duplicates
@@ -61,24 +58,16 @@ read.state.vars <- function(work.path){
   #   r <- filter(forest.data, XCOO==dupli[i,1], YCOO==dupli[i,2])
   #   print(r)
   # }
-  forest.data <- forest.data[-which(a),] %>% select(XY)
+  forest.data <- forest.data[-which(a),] %>% select(-XY)
   
   
-  ## 4. Read data from the dbf with more fields informed and traspass to forest.data
-  forest.info <- read.dbf(paste0(work.path, "QbcLDM/inputlyrs/dbf/exp_LDM_v2.dbf")) %>% 
-                 mutate(XY = paste0(XCOO, "_", YCOO))
-  a <- duplicated(forest.info$XY) 
-  forest.info <- forest.info[-which(a),] 
-  forest.data <- left_join(forest.data, forest.info, by="XY")
-  
-  
-  ## 5. Build a data frame with cell.id, mask values (1, NA) and raster coordinates 
+  ## 4. Build a data frame with cell.id, mask values (1, NA) and raster coordinates 
   ## Then join the forest data 
   dta <- data.frame(cell.id = 1:ncell(MASK), mask=MASK[], round(coordinates(MASK),0)) %>%
          left_join(forest.data, by=c("x"="XCOO", "y"="YCOO")) %>% filter(!is.na(mask))
   
   
-  ## 6. Build the 'land' data frame with forest data and fire regime zone, 
+  ## 5. Build the 'land' data frame with forest data and fire regime zone, 
   ## temperature, precipitation, management unit, species group, age, maturity age,
   ## type of soil, and type of exclusion (plantation / protected) 
   land <- data.frame(cell.id = dta$cell.id,
@@ -88,13 +77,18 @@ read.state.vars <- function(work.path){
                      prec = dta$prec,
                      frz = dta$FRZ,
                      eco.type = dta$TYPE_ECO,
+                     bioclim.domain = substr(dta$REG_ECO,1,1),
                      mgmt.unit = dta$UAwww,
                      spp = dta$GRESS4corr,
                      age = dta$AGE_CORR,
                      age.matu = dta$matu,
                      soil.type = dta$DEP_QLDM,
                      exclus = dta$exclus)  
-
+  
+  ## Reclassify BOP (white birch) as OTH.FEU.N
+  land$spp[land$spp=="BOP"] <- "OTH.FEU.N"
+  land$spp <- factor(land$spp)      # remove the 'BOP' level 
+  
   # # Missing FRZ when spp is informed
   # aux <- select(land, spp, frz)
   # aux$frz[!is.na(aux$frz)] <- "A"
@@ -112,12 +106,11 @@ read.state.vars <- function(work.path){
   # MAP[!is.na(MAP[])] <- aux$mgmt.unit
   # levelplot(MAP, margin=FALSE, colorkey=T, par.settings=viridisTheme())
   
-  ## 7. Reclassify regenerating stands according to the composition within a 10 km circular neigbhorhood
+  ## 6. Reclassify regenerating stands according to the composition within a 10 km circular neigbhorhood
   ## or the ecological type
   land$spp[!is.na(land$spp) & land$spp=="rege"] <- neighour.spp(land, radius.neigh=10000, cell.size)
   land$spp <- factor(land$spp)      # remove the 'rege' level 
   ## Species: BOJ - Yellow birch
-  ##          BOP - White birch
   ##          EPN - Black spruce
   ##          ERS - Sugar maple
   ##          OTH.FEU.N - Other deciduous  boreal                
@@ -126,9 +119,10 @@ read.state.vars <- function(work.path){
   ##          OTH.RES.S - Other conifer temperate
   ##          PET - Trembling aspen
   ##          SAB - Balsam fir
-
+      # table(land$spp)
+      # round(100*table(land$spp)/nrow(land),1)
   
-  ## 8. Assign mean precipitation and temperature of the 8 neigh cells to those cells with non informed values
+  ## 7. Assign mean precipitation and temperature of the 8 neigh cells to those cells with non informed values
   zcells <- filter(land, !is.na(spp) & is.na(temp) & is.na(prec))
   for(id in zcells$cell.id){
     neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
@@ -144,64 +138,72 @@ read.state.vars <- function(work.path){
   land$temp[!is.na(land$spp) & is.na(land$temp)] <- zcells$temp
   land$prec[!is.na(land$spp) & is.na(land$prec)] <- zcells$prec
   
+
   
-  ## 9. Assign most abundant age of the 8 / 24 neigh cells to those cells with non informed values
-  zcells <- filter(land, !is.na(spp) & is.na(age))
-  for(id in zcells$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells, cell.id==id) %>% select(x,y), searchtype="priority", k=9)
-    values <- land$age[neighs$nn.idx]
-    values <- values[!is.na(values)]
-    if(length(values)>0)
-      zcells$age[zcells$cell.id==id] <- names(which.max(table(values)))
-  }
-  land$age[!is.na(land$spp) & is.na(land$age)] <- zcells$age
-  zcells2 <- filter(land, !is.na(land$spp) & is.na(age))
-  for(id in zcells2$cell.id){
-    neighs <- nn2(select(land, x, y), filter(zcells2, cell.id==id) %>% select(x,y), searchtype="priority", k=25)
-    values <- land$age[neighs$nn.idx]
-    values <- values[!is.na(values)]
-    if(length(values)>0)
-      zcells2$age[zcells2$cell.id==id] <- names(which.max(table(values)))
-  }
-  land$age[!is.na(land$spp) & is.na(land$age)] <- zcells2$age
-  
-  
-  ## 10. Assign FRZ to those forest cells without FRZ informed
+  ## 8. Assign FRZ to those forest cells without FRZ informed
   zcells <- filter(land, !is.na(spp) & is.na(frz))
   r <- 3
   while(nrow(zcells)>0){
     neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
     values <- matrix(land$frz[neighs$nn.idx], ncol=r^2)
-    land$frz[!is.na(land$spp) & is.na(land$frz)] <- apply(values, 1, find.frz)
+    land$frz[!is.na(land$spp) & is.na(land$frz)] <- apply(values, 1, find.moda)
     zcells <- filter(land, !is.na(spp) & is.na(frz))
     r <- r+2
   }
   
   
-  ## 11. Assign "T" to missing soil types
+  ## 9. Assign "T" to missing soil types
   land$soil.type[!is.na(land$spp) & land$soil.type=="-"] <- "T"
   
   
-  ## 12. Initialize other state variables
-  ## 12.1. Initalize the 4 time since last disturbance variables
+  ## 10. Re-equilibrate the age class distribution of locations with age <= 20 years
+  ## to compensate for a lack of precision in the initial values of regenerating stands 
+  ## (due to the state of forest inventories in Québec)
+    selection <- !is.na(land$spp) & land$spp!="NonFor"
+    table(land$age[selection])
+  ## Age 66 --> 60 or 65
+  selection <- !is.na(land$age) & land$age==66; sum(selection)
+  land$age[selection] <-  sample(c(60,65), sum(selection), replace=T)
+  ## Randomize ages 10, 30, 50, 70 and 90
+  selection <- !is.na(land$age) & land$age %in% c(10,30,50,70,90) & land$spp!="NonFor"; sum(selection)
+  land$age[selection] <-  land$age[selection] + sample(c(-10,-5,0,5), sum(selection), replace=T)
+  ## Randomize ages 120 and 200
+  selection <- !is.na(land$age) & land$age==120 & land$spp!="NonFor"; sum(selection)
+  land$age[selection] <-  land$age[selection] + sample(c(-15,-10,-5,0), sum(selection), replace=T)
+
+  ## 8. Assign most abundant age of the neigbour cells to those cells with non informed values
+  zcells <- filter(land, !is.na(spp) & is.na(age) & spp!="NonFor")
+  r <- 3
+  while(nrow(zcells)>0){
+    neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
+    values <- matrix(land$age[neighs$nn.idx], ncol=r^2)
+    land$age[!is.na(land$spp) & is.na(land$age) & land$spp!="NonFor"] <- apply(values, 1, find.moda)
+    zcells <- filter(land, !is.na(spp) & is.na(age) & spp!="NonFor")
+    r <- r+2
+  }
+  land$age <- as.numeric(land$age)
+  
+  
+  ## 11. Initialize other state variables
+  ## 11.1. Initalize the 4 time since last disturbance variables
   ## The origin of any disturbance that may have impacted the study area is known.
   land$TSF <- 100
   land$TSSBW <- 100
   land$TSCcut <- land$age
   
-  ## 12.2. Create a variable that records the time since the last change in forest composition 
+  ## 11.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.
   ## A cell will be considered potential "source" population for migration and range expansion 
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$Tcomp <- 50
   
-  ## 12.3. Create a variable that records the time since the last partical cut
+  ## 11.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, half the age of maturity
   land$TSPcut <- (land$age.matu %/% 10)/2*10
   
   
-  ## 13. Give raster structure to each state variable to be saved in a layer stack 
+  ## 12. Give raster structure to each state variable to be saved in a layer stack 
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$frz; FRZone <- MAP
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$mgmt.unit; MgmtUnit <- MAP
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$spp; SppGrp <- MAP
@@ -217,21 +219,21 @@ read.state.vars <- function(work.path){
   save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
     
   
-  ## 14. Save the MASK raster in a .rdata with NA everywhere species is not informed
+  ## 13. Save the MASK raster in a .rdata with NA everywhere species is not informed
   dta <- data.frame(cell.id = 1:ncell(MASK)) %>% left_join(land, by="cell.id")
   MASK[is.na(dta$spp)] <- NA
   levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
   save(MASK, file="inputlyrs/rdata/mask.rdata")
   
   
-  ## 15. Keep only cells that are not NA and save the 'land' data frame with all state variables
+  ## 14. Keep only cells that are not NA and save the 'land' data frame with all state variables
   land <- land[!is.na(land$spp),]
   save(land, file="inputlyrs/rdata/land.rdata")
   
 }
 
 
-find.frz <- function(x){
+find.moda <- function(x){
   a <-  names(which.max(table(x)))
   a <- ifelse(is.null(a), NA, a)
   return(a)
