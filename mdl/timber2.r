@@ -32,27 +32,24 @@
 ######################################################################################
 
 timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
+                    salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
 
   cat("Timber supply even aged stands - area", "\n" )
              
-  # Silence  
-  options(warn=-1)
-  
   # Initialize empty vector for the clear cut cells 
   cc.cells <- numeric(0)
   n.cc.cells<- numeric(0)
   
   # Name of the management units.
-  land2 <- land[!is.na(land$MgmtUnit),]
-  land2$even[land2$TSF==0] <- 1
+  land2 <- land[!is.na(land$mgmt.unit),]
+  land2$even[land2$tsfire==0] <- 1
   
-  units <- as.character(sort(unique(land2$MgmtUnit[!is.na(land2$MgmtUnit)])))
+  units <- as.character(sort(unique(land2$mgmt.unit[!is.na(land2$mgmt.unit)])))
   
   # Harvest rates have to be calculated separately for each management unit:
-  unit=units[17] # for testing  unit="2662"
+  unit=units[3] # for testing  unit="2662"
   for(unit in units){  
-    
+    # cat(unit, "\n")
     # Separate locations that can be harvested (included) from those that cannot due to environmental or 
     # social constraints (excluded).
     # Some excluded areas are identified directly on the map based on local knowledge.
@@ -60,17 +57,17 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     # biodiversity objectives (even if they cannot be harvested).
     # Differentiate also between young and mature stands.
     
-    s.inc <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 & is.na(land2$Exclus)])
-    s.ex  <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 & !is.na(land2$Exclus)])
-    s.inc.mat <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= land2$AgeMatu & is.na(land2$Exclus)])
-    s.ex.mat  <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= land2$AgeMatu & !is.na(land2$Exclus)])
+    s.inc <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$age >= 0 & is.na(land2$exclus)])
+    s.ex  <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$age >= 0 & !is.na(land2$exclus)])
+    s.inc.mat <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$age >= land2$age.matu & is.na(land2$exclus)])
+    s.ex.mat  <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$age >= land2$age.matu & !is.na(land2$exclus)])
     
     # categories of burned area - young (cannot be salvaged) vs mature (can be salvaged)
     
-    s.inc.burnt     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$TSF==0 & is.na(land2$Exclus)])
-    s.inc.mat.burnt <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$TSF==0 & is.na(land2$Exclus)])
-    s.inc.kill     <- length(land2$cell.id[land2$MgmtUnit == unit &  land2$Age >= 0 &  land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
-    s.inc.mat.kill <- length(land2$cell.id[land2$MgmtUnit == unit &  (land2$Age >= land2$AgeMatu) &  land2$TSSBW %in% c(0,5) & is.na(land2$Exclus)])
+    s.inc.burnt     <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$tsfire==0 & is.na(land2$exclus)])
+    s.inc.mat.burnt <- length(land2$cell.id[land2$mgmt.unit == unit &  (land2$age >= land2$age.matu) &  land2$tsfire==0 & is.na(land2$exclus)])
+    s.inc.kill     <- length(land2$cell.id[land2$mgmt.unit == unit &  land2$age >= 0 &  land2$tssbw %in% c(0,5) & is.na(land2$exclus)])
+    s.inc.mat.kill <- length(land2$cell.id[land2$mgmt.unit == unit &  (land2$age >= land2$age.matu) &  land2$tssbw %in% c(0,5) & is.na(land2$exclus)])
     
     #print(paste("tordeuse",s.inc.kill,s.inc.mat.kill))
     
@@ -78,12 +75,12 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     # on species dominance. Some species are mostly managed through even aged silviculture (EPN,
     # SAB, PET, others), the rest through unevenaged silviculture.
 
-   # even <- land2$MgmtUnit == unit & land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
+   # even <- land2$mgmt.unit == unit & land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$exclus) & land2$rndm<=0.95
   #  sum(even) 
-  #  even[land2$MgmtUnit == unit & land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm>0.95] <- 1
+  #  even[land2$mgmt.unit == unit & land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$exclus) & land2$rndm>0.95] <- 1
 
     
-    land.ea <- land2[land2$MgmtUnit == unit & land2$even==1,] 
+    land.ea <- land2[land2$mgmt.unit == unit & land2$even==1,] 
     dim(land.ea)
     # Get the area managed under an even-aged regime
     s.ea <- length(land.ea$cell.id)   
@@ -94,29 +91,29 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     target.old.pct.ea <- target.old.ha.ea/s.ea        
     
     # Subset of harvestable (mature even-aged) cells
-    land.rec <- land.ea[land.ea$Age >= land.ea$AgeMatu,]
+    land.rec <- land.ea[land.ea$age >= land.ea$age.matu,]
     s.mat <- nrow(land.rec)
     
     #### Determine the sustained yield level
     
     # Number of strata corresponding to the number of different ages of maturity present in
     # each FMU. Only one stratum is used in the current version
-    strates <- sort((unique(land.ea$AgeMatu)))
-    #table(land.ea$AgeMatu)
+    strates <- sort((unique(land.ea$age.matu)))
+      # table(land.ea$age.matu)
+    
     # Calculation of the expected abundance of harvestable stands during future planning periods, 
     # as the stands that are currently young will age and become harvestable
-    
     recoltable <- matrix(0,length(strates), hor.plan)
     recoltable2 <- matrix(0,length(strates), hor.plan)
-    for (j in 1:length(strates)) { # j=1
+    for(j in 1:length(strates)) { # j=1
       age.mat.stra <- strates[j]
-      TSD_strate <- land.ea$Age[land.ea$AgeMatu==strates[j]]
+      TSD_strate <- land.ea$age[land.ea$age.matu==strates[j]]
       # maximum theoretical harvestable area per period for each stratum
       recoltable2[j,] <- length(TSD_strate)/(age.mat.stra/5) * (1:hor.plan)   
       # Determine the period when maturity will be reached for the different age classes
-      for (per in 0:(hor.plan-1))  # per=0  
+      for(per in 0:(hor.plan-1))  # per=0  
         recoltable[j,per+1] <- sum(TSD_strate >= (age.mat.stra-(per*5)))
-      for (per in (age.mat.stra/5): hor.plan)
+      for(per in (age.mat.stra/5):hor.plan)
         recoltable[j,per] <- recoltable2[j,per]
     }
     
@@ -129,13 +126,12 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     recoltable.s3 <- recoltable.s2 * a.priori
     # Number of cells to harvest (sustained yield level) 
     n.cc.cells.UA <-  max(0, round(min(recoltable.s3)*1))
-    
     n.cc.cells <- c(n.cc.cells,n.cc.cells.UA)
     
   }
   n.cc.cells <- as.data.frame(cbind(units,(n.cc.cells)))
-  names(n.cc.cells) <- c("MgmtUnit","x")
-  n.cc.cells$MgmtUnit <- as.numeric(as.character(n.cc.cells$MgmtUnit))
+  names(n.cc.cells) <- c("mgmt.unit","x")
+  n.cc.cells$mgmt.unit <- as.numeric(as.character(n.cc.cells$mgmt.unit))
   n.cc.cells$x <- as.numeric(as.character(n.cc.cells$x))
 
   return(n.cc.cells)  

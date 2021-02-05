@@ -32,7 +32,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   
   ## Generate random probability of ignition or load static pigni
   if(pigni.opt=="rand"){
-    pigni <- data.frame(cell.id=land$cell.id, frz=land$FRZone)
+    pigni <- data.frame(cell.id=land$cell.id, frz=land$frz)
     pigni$p <- runif(nrow(pigni),0.01,1)
   }
   if(pigni.opt=="static.exp")
@@ -53,39 +53,35 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   fuels <- fuel.type(land, fuel.types.modif, NA)
   
   ## To determine changes in landscape level fuel load per zone
-  current.fuels <- group_by(fuels, zone) %>% summarize(x=mean(baseline))
+  current.fuels <- group_by(fuels, frz) %>% summarize(x=mean(baseline))
   modif.fuels <- current.fuels
   modif.fuels$x <-  1+(current.fuels$x-baseline.fuel$x)/baseline.fuel$x
-  #print(modif.fuels)
+   # print(modif.fuels)
   
   ## To modify target area to be burnt according to SEP values (climate change)
   if(!is.na(clim.scn))
     sep.zone.cc <- filter(sep.zone, GCM==gcm.sep, RCP==clim.scn)
   
-  ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
-  fr.zones <- sample(LETTERS[1:8], 8, replace=FALSE)   
-  
   ## Initialize empty vector to track burned cells 
   burnt.cells <- visit.cells <-  numeric(0)
   
   ## Reset TrackFires data frame each run
-  track.target <- data.frame(zone=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
-  track.fire <- data.frame(zone=NA, fire.id=NA, wind=NA, target.size=NA,  burnt.size=NA)
-  track.sprd <- data.frame(zone=NA, fire.id=NA, cell.id=NA, step=NA, 
-                            flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
+  track.target <- data.frame(frz=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
+  track.fire <- data.frame(frz=NA, fire.id=NA, wind=NA, target.size=NA,  burnt.size=NA)
+  track.sprd <- data.frame(frz=NA, fire.id=NA, cell.id=NA, step=NA, flam=NA, wind=NA, sr=NA, pb=NA, burning=NA)
   
-  
+  ## Create a random permuation of the Fire Regime Zones to not burning FRZ always in the same order
   ## Start burning until target area per fire zone is not reached 
-  izone="E"
-  for(izone in fr.zones){
+  izone <- "Z3"
+  for(izone in paste0("Z", sample(1:6, 6, replace=FALSE))){
     
     ## Track modifications of target area at the zone level
     aux.track <- track.target[1,]
-    aux.track$zone <- izone
+    aux.track$frz <- izone
       
     ## Determine target area to be  burnt per zone
     ## 1. Baseline area derived from MFRI (cells)
-    baseline.area <- time.step*sum(land$FRZone==izone)/fire.regime$fri[fire.regime$zone==izone]
+    baseline.area <- time.step*sum(land$frz==izone)/fire.regime$fri[fire.regime$frz==izone]
     aux.track$br <- baseline.area
     
     ## 2. Add random inter-period variability 
@@ -94,7 +90,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     
     ## 3. Modify target area based on changes in landscape-level fuel load
     if(is.fuel.modifier) 
-      zone.target.area <- zone.target.area*modif.fuels$x[modif.fuels$zone==izone]
+      zone.target.area <- zone.target.area*modif.fuels$x[modif.fuels$frz==izone]
     aux.track$brfuel <- zone.target.area
     
     ## 4. Modify target area based on climate projections
@@ -203,8 +199,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         neigh.id  
         
         ## Get spread rate andcompute probability of burning and actual burning state (T or F):
-        sprd.rate <- group_by(neigh.id, cell.id) %>% 
-                     summarize(sr=max(sr), pb=max(pb)) 
+        sprd.rate <- group_by(neigh.id, cell.id) %>% summarize(sr=max(sr), pb=max(pb)) 
         sprd.rate$burning <-runif(nrow(sprd.rate), 0, pb.upper.th) <= sprd.rate$pb & sprd.rate$pb >= pb.lower.th
             # if(nrow(sprd.rate)>0)
             #   track.sprd <- rbind(track.sprd, data.frame(zone=izone, fire.id=fire.id, cell.id=sprd.rate$cell.id,
@@ -243,15 +238,15 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         if(length(fire.front)==0)
           break
         
-      } # while 'fire burns'
+      } # while 'fire.target.area'
       
       ## Write info about this fire
-      track.fire <- rbind(track.fire, data.frame(zone=izone, fire.id, wind=fire.wind, 
+      track.fire <- rbind(track.fire, data.frame(frz=izone, fire.id, wind=fire.wind, 
                                                  target.size=fire.target.area*km2.pixel,
                                                  burnt.size=fire.ncell.burnt*km2.pixel))  
       #  cat(paste("Fire:", fire.id, "- TargetSize:", fire.target.area, "- BurntPxls:", fire.ncell.burnt), "\n")
       
-    }  # while 'zone burns'
+    }  # while 'zone.target.area'
   } #for 'zone'
   
     
@@ -259,17 +254,17 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   track.target <- track.target[-1,]
   track.fire <- track.fire[-1,] 
   # Size (in km2) of each zone
-  zone.size <- group_by(land, FRZone) %>% summarize(area=length(FRZone)*km2.pixel)
+  zone.size <- group_by(land, frz) %>% summarize(area=length(frz)*km2.pixel)
   # Mean flammability of what has been burnt
   burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA) %>% 
-                 group_by(zone) %>%  summarize(indx.combust.burnt=mean(baseline))
+                 group_by(frz) %>%  summarize(indx.combust.burnt=mean(baseline))
   # Burnt per zone
-  zone.burnt <- group_by(track.fire, zone) %>% summarize(nfires=length(fire.id), burnt.area=sum(burnt.size)) 
+  zone.burnt <- group_by(track.fire, frz) %>% summarize(nfires=length(fire.id), burnt.area=sum(burnt.size)) 
   # Fire regime (burnt, MFRI, indx.combust)  
-  track.regime <- select(track.target, zone, target.area) %>% left_join(zone.burnt, by="zone") %>% 
-                 left_join(zone.size, by=c("zone"="FRZone")) %>% left_join(current.fuels, by="zone") %>%
+  track.regime <- select(track.target, frz, target.area) %>% left_join(zone.burnt, by="frz") %>% 
+                 left_join(zone.size, by="frz") %>% left_join(current.fuels, by="frz") %>%
                  mutate(fire.cycle=round(time.step*area/burnt.area), indx.combust=x) %>% select(-area, -x) %>% 
-                 left_join(burnt.fuels, by="zone") 
+                 left_join(burnt.fuels, by="frz") 
   
   ## Track fuels
   # track.fuels <- left_join(current.fuels, burnt.fuels, by="zone")
