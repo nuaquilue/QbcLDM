@@ -50,6 +50,8 @@ load("inputlyrs/rdata/cc.temp.factor4.rdata")
 
 ##################################### PLOT  SPATIAL INPUTS ###########################################
 load(file="inputlyrs/rdata/sp.input.rdata")
+library(viridis)
+library(rasterVis)
 levelplot(sp.input$FRZone, margin=FALSE, colorkey=T, par.settings=magmaTheme())
 levelplot(sp.input$MgmtUnit, margin=FALSE, colorkey=T, par.settings=plasmaTheme())
 levelplot(sp.input$SppGrp, margin=FALSE, colorkey=T, par.settings=plasmaTheme())
