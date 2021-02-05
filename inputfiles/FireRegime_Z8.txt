@@ -1,4 +1,4 @@
-zone	fri	max
+frz	fri	max
 A	250	2000
 B	125	2000
 C	200	2000

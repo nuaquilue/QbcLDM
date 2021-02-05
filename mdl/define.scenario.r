@@ -30,7 +30,7 @@ define.scenario <- function(scn.name){
   nrun <- 1
   
   ## Flags to write spatial and tabular output data
-  write.sp.outputs <- TRUE
+  write.maps <- TRUE
   plot.fires <- FALSE
   
   ## Processes of the model included (TRUE-IN our FALSE-OUT),
@@ -51,10 +51,10 @@ define.scenario <- function(scn.name){
   ## FIRE parameters
   ## In fire.regime, MFRI and max fire size (in km2); fire size (in km2) distribution per fire zone; 
   ## SEP values and ratios per fire zone; and flammability of fuels per zone and fire size
-  fire.regime <-  read.table("inputfiles/FireRegime.txt", header=T)
-  fire.sizes <- read.table("inputfiles/FireSizes.txt", header=T)
-  sep.zone <- read.table("inputfiles/SEPzone.txt", header=T)
-  fuel.types.modif <- read.table("inputfiles/FuelTypeModif.txt", header=T)
+  fire.regime <-  read.table("inputfiles/FireRegime_Z6.txt", header=T)
+  fire.sizes <- read.table("inputfiles/FireSizes_Z6.txt", header=T)
+  sep.zone <- read.table("inputfiles/SEPzone_Z6.txt", header=T)
+  fuel.types.modif <- read.table("inputfiles/FuelTypeModif_Z6.txt", header=T)
   pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static" for a spatial but static 
                       # probability of fire ignition, or "dyn" for a dynamic probability of ignition derived from
                       # a empiric relation between ignitions and environmental / anthropic drivers.
@@ -80,7 +80,8 @@ define.scenario <- function(scn.name){
   salvage.rate.FMU <- 1    # maximum proportion of salvaged burnt wood allowed in the timber supply in each FMU [0,1]
   # ecocrisis <- FALSE       # presence of economic crises during simulations
   # ecocrisis.freq <- 0.0    # proportion of years affected by an economic crisis (between 0 and 1)
-  hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years, 5*22==110)
+  # hor.plan <- 22           # time horizon for timber supply calculations (periods of 5 years, 5*22==110)
+  hor.plan <- 24           # time horizon for timber supply calculations (periods of 5 years, 5*24==120)
   ## Replanning options facing natural disturbances
   a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution of a buffer 
                  # for attenuation of natural disturbance impacts on timber supply fluctuations.
@@ -104,13 +105,13 @@ define.scenario <- function(scn.name){
   post.sbw.reg <- read.table("inputfiles/PostSBWRege.txt", header=T)
   post.harvest.reg <- read.table("inputfiles/PostCutRege.txt", header=T)
   forest.succ <- read.table("inputfiles/ForestSucc.txt", header=T)
-  potential.spp <- read.table("inputfiles/PotentialSpp.txt", header=T)
+  spp.colonize.persist <- read.table("inputfiles/SppColonizePersist.txt", header=T)
       # rad.buff is the estimated maximum colonization distance (in m)
       # nb.buff is the minimum number of source cells within the colonization distance to enable colonization
       # persist indicates whether we allow the transition probability to remain high locally
       # (cell level) when the species is outside its optimal climatic condition (1=yes, 0=no)
   temp.suitability <- read.table("inputfiles/ThMeanTemp.txt", header=T)  
-  precip.suitability <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
+  prec.suitability <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
   soil.suitability <- read.table("inputfiles/ThSoil.txt", header=T)  
   
   

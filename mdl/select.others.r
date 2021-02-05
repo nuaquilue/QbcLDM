@@ -14,7 +14,7 @@ select.others <- function(land, target.cells){
   neigh.id <- neigh.id+ids
   ids <- neigh.id+ids
   ## count n of Oth
-  others <- c("OthCB", "OthCT", "OthDB", "OthDT")
+  others <- c("OTH.RES.N","OTH.RES.S","OTH.FEU.N","OTH.FEU.S")
   count.oth <- matrix(0, nrow=length(target.cells), ncol=length(others))
   for(oth in others){
     x <- filter(land, SppGrp==oth) %>% select(cell.id)

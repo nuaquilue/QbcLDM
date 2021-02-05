@@ -1,4 +1,4 @@
-Time	EPN	SAB	BOJ	other	PET	ERS
+Time	EPN	SAB	BOJ	OTH	PET	ERS
 0	5	5	5	5	5	5
 5	5	7	7	7	7	7
 10	7.5	9	9	9	9	9

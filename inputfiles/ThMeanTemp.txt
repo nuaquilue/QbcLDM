@@ -1,4 +1,4 @@
-Spp	Th1 	Th2	Th3	Th4
+spp	th1 	th2	th3	th4
 SAB	-999	-1.9   	3.3	5.0
 EPN	-999	-998	0.0	2.1
 PET	-0.25	0.2	5.5	8.5

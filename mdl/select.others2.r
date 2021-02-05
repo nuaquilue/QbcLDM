@@ -7,29 +7,24 @@ select.others <- function(land, target.cells.oth){
   
   target.cells.oth.xy <- land[land$cell.id %in% target.cells.oth,c("x","y")]
   
-  micro.OthCB <- land[land$SppGrp%in% c("OthCB"),]
-  list.cell.buff <- nn2(micro.OthCB[,c("x","y")], target.cells.oth.xy, 
-                        k=40 , searchtype='priority')
+  micro.OthCB <- land[land$spp%in% c("OTH.RES.N"),]
+  list.cell.buff <- nn2(micro.OthCB[,c("x","y")], target.cells.oth.xy, k=40 , searchtype='priority')
   vec.OthCB <- rowSums(list.cell.buff$nn.dists < 20000)  
   
-  micro.OthCT <- land[land$SppGrp%in% c("OthCT"),]
-  list.cell.buff <- nn2(micro.OthCT[,c("x","y")], target.cells.oth.xy, 
-                        k=40 , searchtype='priority')
+  micro.OthCT <- land[land$spp%in% c("OTH.RES.S"),]
+  list.cell.buff <- nn2(micro.OthCT[,c("x","y")], target.cells.oth.xy, k=40 , searchtype='priority')
   vec.OthCT <- rowSums(list.cell.buff$nn.dists < 20000)
   
-  micro.OthDB <- land[land$SppGrp%in% c("OthDB"),]
-  list.cell.buff <- nn2(micro.OthDB[,c("x","y")], target.cells.oth.xy, 
-                        k=40 , searchtype='priority')
+  micro.OthDB <- land[land$spp%in% c("OTH.FEU.N"),]
+  list.cell.buff <- nn2(micro.OthDB[,c("x","y")], target.cells.oth.xy, k=40 , searchtype='priority')
   vec.OthDB <- rowSums(list.cell.buff$nn.dists < 20000)
   
-  micro.OthDT <- land[land$SppGrp%in% c("OthDT","ERS","BOJ"),]
-  list.cell.buff <- nn2(micro.OthDT[,c("x","y")],target.cells.oth.xy, 
-                        k=40 , searchtype='priority')
+  micro.OthDT <- land[land$spp%in% c("OTH.FEU.S","ERS","BOJ"),]
+  list.cell.buff <- nn2(micro.OthDT[,c("x","y")],target.cells.oth.xy, k=40 , searchtype='priority')
   vec.OthDT <- rowSums(list.cell.buff$nn.dists < 20000)
   
   count.oth <-   cbind(vec.OthCB,vec.OthCT,vec.OthDB,vec.OthDT)
-  
-  others <- c("OthCB","OthCT","OthDB","OthDT")
+  others <- c("OTH.RES.N","OTH.RES.S","OTH.FEU.N","OTH.FEU.S")
   
   # Choose others according to the number of others in the neighborhood
   spp <- others[apply(count.oth, 1, sample.oth)]

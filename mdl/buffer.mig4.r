@@ -6,7 +6,7 @@
 ###                 section of landscape.dyn
 ###
 ###  Arguments >  
-###   microland : data frame with the cell.indx, SppGrp, x, and Coord Y
+###   land : data frame with the cell.indx, SppGrp, x, and Coord Y
 ###   target.cells : vector of cells open for colonization, and for which the presence of source populations
 ###                  nearby must be assessed
 ###   potential.spp : a matrix describind  the radius in m corresponding to the maximal colonization distance for each species, 
@@ -19,24 +19,24 @@
 ###           species: PET, BOJ, ERS, SAB, EPN, other, NonFor
 ######################################################################################
 
- # microland <- land[, c("cell.indx", "SppGrp", "x", "y","TSD","Tcomp")]
+ # land <- land[, c("cell.indx", "SppGrp", "x", "y","TSD","Tcomp")]
  # target.cells <- land[land$cell.id %in% burnt.cells, c("cell.indx", "x", "y")]
 
-buffer.mig4 <- function(microland, target.cells.mig, potential.spp){
+buffer.mig4 <- function(land, target.cells.mig, spp.colonize.persist){
   
   ## Coordinates of the target cells
-  target.cells.mig.xy <- microland[microland$cell.id %in% target.cells.mig, c("cell.id", "x", "y")]
+  target.cells.mig.xy <- land[land$cell.id %in% target.cells.mig, c("cell.id", "x", "y")]
   
   ## Radius ~ max. colonization distance per species, and min number of soruces to enable colonization
-  radius.buff <- potential.spp[,2]
-  nb.buff <- potential.spp[,3]
+  radius.buff <- spp.colonize.persist$rad
+  nb.buff <- spp.colonize.persist$nneigh
     
   # Source cells (i.e. potential colonizers) per species. Minimal age of 50 years.
-  micro.boj <- microland[microland$SppGrp=="BOJ" & microland$Age>=50 & microland$Tcomp>=50,]
-  micro.pet <- microland[microland$SppGrp=="PET" & microland$Age>=50 & microland$Tcomp>=50,]
-  micro.ers <- microland[microland$SppGrp=="ERS" & microland$Age>=50 & microland$Tcomp>=50,]
-  micro.epn <- microland[microland$SppGrp=="EPN" & microland$Age>=50 & microland$Tcomp>=50,]
-  micro.sab <- microland[microland$SppGrp=="SAB" & microland$Age>=50 & microland$Tcomp>=50,]
+  micro.boj <- land[land$spp=="BOJ" & land$age>=50 & land$tscomp>=50,]
+  micro.pet <- land[land$spp=="PET" & land$age>=50 & land$tscomp>=50,]
+  micro.ers <- land[land$spp=="ERS" & land$age>=50 & land$tscomp>=50,]
+  micro.epn <- land[land$spp=="EPN" & land$age>=50 & land$tscomp>=50,]
+  micro.sab <- land[land$spp=="SAB" & land$age>=50 & land$tscomp>=50,]
   
   ### Calculate number of source populations in the neighbohood of each target cell. Colonization distances
   ### are species-specific.
@@ -68,30 +68,29 @@ buffer.mig4 <- function(microland, target.cells.mig, potential.spp){
   # Build a data frame with the presence or absence of a sufficient number of
   # source populations of each species around each target cell. Currently set
   # at one in all scenarios, but could be modified.
-  
-  target.df <- data.frame(target.cells.mig.xy, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, SAB=nn.dists.sab, 
-                          EPN=nn.dists.epn, OTH=TRUE, NonFor=TRUE)
+  target.df <- data.frame(target.cells.mig.xy, PET=nn.dists.pet, BOJ=nn.dists.boj, ERS=nn.dists.ers, 
+                          SAB=nn.dists.sab, EPN=nn.dists.epn, OTH=TRUE, NonFor=TRUE)
   target.df <- target.df[,-c(2,3)]  
   target.df <- melt(target.df,id=c("cell.id"))
-  
-  names(target.df)[-1] <- c("PotSpp", "PressBuffer")
-  target.df$PotSpp <- as.character(target.df$PotSpp)
+  names(target.df)[-1] <- c("potential.spp", "press.buffer")
+  target.df$potential.spp <- as.character(target.df$potential.spp)
   return(target.df)
 
-  ## Now for each potential species, look if it can colonize each target cell according to 
-  ## the estimated colonization distance
-  for(ispp in 1:nrow(potential.spp)){
-    ## Cells are potential colonizers if are at least 50 years old and time since last species composition change 
-    ## is at least 50 years.
-    colonizer <- filter(land, SppGrp %in% potential.spp$spp[ispp], Age>=50, Tcomp>=50)
-    ## First find the closest neighbors of all target cells. Look for enough neighbors to cover the maximum
-    ## estimated maximum colonization distance (i.e. 75.000 m)
-    neighs <- nn2(select(colonizer, x, y), target.coord, searchtype="priority", k=nrow(colonizer))  
-    ## Now verify if the potential species are close enough of the target cells, the colonization distance is species-specific.
-    aux <- apply(neighs$nn.dists <= potential.spp$rad[ispp], 1, sum) >= potential.spp$nneigh[ispp]
-    buffer.spp <- rbind(buffer.spp, data.frame(cell.id=target.cells, PotSpp=potential.spp$spp[ispp], PressBuffer=aux))    
-  }
-   
-  return(buffer.spp)
+  #############################   IT DOES THE SAME #############################
+    # ## Now for each potential species, look if it can colonize each target cell according to 
+    # ## the estimated colonization distance
+    # for(ispp in 1:nrow(spp.colonize.persist)){
+    #   ## Cells are potential colonizers if are at least 50 years old and time since last species composition change 
+    #   ## is at least 50 years.
+    #   colonizer <- filter(land, spp %in% spp.colonize.persist$spp[ispp], age>=50, tscomp>=50)
+    #   ## First find the closest neighbors of all target cells. Look for enough neighbors to cover the maximum
+    #   ## estimated maximum colonization distance (i.e. 75.000 m)
+    #   neighs <- nn2(select(colonizer, x, y), target.cells.mig.xy[,-1], searchtype="priority", k=nrow(colonizer))  
+    #   ## Now verify if the potential species are close enough of the target cells, the colonization distance is species-specific.
+    #   aux <- apply(neighs$nn.dists <= spp.colonize.persist$rad[ispp], 1, sum) >= spp.colonize.persist$nneigh[ispp]
+    #   buffer.spp <- rbind(buffer.spp, data.frame(target.cells.mig.xy, 
+    #                       potential.spp=spp.colonize.persist$spp[ispp], press.buffer=aux))    
+    # }
+    # return(buffer.spp)
 }
 

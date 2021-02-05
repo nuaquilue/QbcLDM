@@ -6,8 +6,9 @@ build.pigni <- function(work.path, lambda=0, r=1, first.time=F){
   load(file="inputlyrs/rdata/land.rdata")
   
   ## Build a spatial points layer with coordinates of the forest data
-  points <- SpatialPoints(land[,2:3],  CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
-                    +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+  points <- SpatialPoints(land[land$spp!="NonFor",2:3],  
+                          CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
+                               +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
     
   ## Read buffers around the observed ignitions 
   buff <- data.frame(points)
@@ -34,7 +35,7 @@ build.pigni <- function(work.path, lambda=0, r=1, first.time=F){
     buff[,i] <- ifelse(buff[,i]==0, NA, buff[,i])
   
   ## Compute the minimum distance to a focal, and then assign prob igni
-  pigni <- data.frame(cell.id=land$cell.id, frz=land$FRZone,
+  pigni <- data.frame(cell.id=land$cell.id[land$spp!="NonFor"], frz=land$frz[land$spp!="NonFor"],
                       d=pmin(buff$r05, buff$r10, buff$r20, buff$r30, buff$r40, na.rm=T))
   
   ## Assign probability of ignition p=exp(-lamda* d), and save it

@@ -75,7 +75,11 @@ read.state.vars <- function(work.path){
                      y = dta$y,
                      temp = dta$temp,
                      prec = dta$prec,
-                     frz = dta$FRZ,
+                     frz = ifelse(dta$FRZ=="A", "Z1", ifelse(dta$FRZ=="B" | dta$FRZ=="C" | dta$FRZ=="D", "Z2",
+                           ifelse(dta$FRZ=="E" | dta$FRZ=="F" | dta$FRZ=="H" | dta$FRZ=="I" | dta$FRZ=="J", "Z3",
+                           ifelse(dta$FRZ=="G", "Z4", ifelse(dta$FRZ=="K", "Z5",  
+                           ifelse(dta$FRZ=="L" | dta$FRZ=="M", "Z6", ifelse(dta$FRZ=="Y", "Y",  
+                           ifelse(dta$FRZ=="Z", "Z", NA)))))))),
                      eco.type = dta$TYPE_ECO,
                      bioclim.domain = substr(dta$REG_ECO,1,1),
                      mgmt.unit = dta$UAwww,
@@ -83,7 +87,7 @@ read.state.vars <- function(work.path){
                      age = dta$AGE_CORR,
                      age.matu = dta$matu,
                      soil.type = dta$DEP_QLDM,
-                     exclus = dta$exclus)  
+                     exclus = ifelse(dta$exclus=="EXC", "EXC", NA))  
   
   ## Reclassify BOP (white birch) as OTH.FEU.N
   land$spp[land$spp=="BOP"] <- "OTH.FEU.N"
@@ -187,20 +191,20 @@ read.state.vars <- function(work.path){
   ## 11. Initialize other state variables
   ## 11.1. Initalize the 4 time since last disturbance variables
   ## The origin of any disturbance that may have impacted the study area is known.
-  land$TSF <- 100
-  land$TSSBW <- 100
-  land$TSCcut <- land$age
+  land$tsfire <- 100
+  land$tssbw <- 100
+  land$tsccut <- land$age
   
   ## 11.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.
   ## A cell will be considered potential "source" population for migration and range expansion 
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
-  land$Tcomp <- 50
+  land$tscomp <- 50
   
   ## 11.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, half the age of maturity
-  land$TSPcut <- (land$age.matu %/% 10)/2*10
+  land$tspcut <- (land$age.matu %/% 10)/2*10
   
   
   ## 12. Give raster structure to each state variable to be saved in a layer stack 
