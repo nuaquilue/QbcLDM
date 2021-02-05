@@ -15,23 +15,23 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
   ## Extract the portion that is managed through uneven-aged silviculture - partial cutting.
   ## Based on stand composition: some species are mostly managed through even aged silviculture
   ## 5% of stands dominated by species traditionally managed through clear cuts are managed through PCs
-  land <- mutate(land, rndm=runif(nrow(land)))
-  land$mgmt.unit <- as.numeric(as.character(land$mgmt.unit))
-  land2 <- land[!is.na(land$mgmt.unit),]
+  land2 <- land
+  land2$rndm <- runif(nrow(land2))
+  
   
  # land2 <- mutate(land2, rndm=runif(nrow(land2)))
   
 #  even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
 #  sum(even) 
  # even[land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm>0.95] <- 1
-  land2$even[land2$tsfire==0] <- 1
+  land2$even[land2$tsfire==0 & land2$spp!="NonFor"] <- 1  ## NÚ - No change harvest regime for NonFor cells.
 
   land.uea <- land2[land2$even==0,]
   
-  land.uea2 <- land.uea[land.uea$tspcut>=0,]
+  land.uea2 <- land.uea[land.uea$tspcut>=0,]   ## NÚ - this condition does not do anything
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
-  land.uea2$age.matu.pc <- round(land.uea2$age.matu,-1)/2
+  land.uea2$age.matu.pc <- round(land.uea2$age.matu,-1)/2   ## NÚ - what does it mean to round " -1 " ?
   
   ## Get the number of cells to be managed under a partial-cut regime
   s.uea <- group_by(land.uea2, mgmt.unit) %>% summarise(x=length(mgmt.unit))    
@@ -50,8 +50,10 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
   for(unit in unique(land.uea2$mgmt.unit)){
     strate.fmu <- filter(strates, mgmt.unit==unit)
     as.data.frame(strate.fmu)
+    
     ## The calculation is only performed if there are cells to harvest
-    if(length(strates)>0){
+    if(length(strate.fmu)>0){  ## NÚ - The conditions length(strates)>0  does not make sense
+                               ## I change to length(strate.fmu)>0
       
       ## Calculation of the expected abundance of harvestable stands during future planning periods, 
       ## as the stands that are currently young will age and become harvestable
@@ -59,8 +61,7 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
       for (j in 1:nrow(strate.fmu)){ # j=3
         age.mat.stra <- strate.fmu$age.matu.pc[j]
         # extraire les TSPC pour la strate et l'UA courante
-        
-        TSPCstrate <- land.uea2$TSPCut[land.uea2$mgmt.unit==unit & land.uea2$age.matu.pc==age.mat.stra] 
+        TSPCstrate <- land.uea2$tspcut[land.uea2$mgmt.unit==unit & land.uea2$age.matu.pc==age.mat.stra] 
         table(TSPCstrate)
         # superficie maximale théorique récoltable par période pour chaque strate
         recoltable2[j,] <- (length(TSPCstrate)/(age.mat.stra/pc.step)) * (1:hor.plan)   
@@ -72,10 +73,8 @@ timber.partial <- function(land, hor.plan, km2.pixel, pc.step){
       }
 
       # Total harvestable area, all strata combined
-      
       recoltable.s[which(unit==recoltable.s$mgmt.unit),2:(hor.plan+1)] <-  
           colSums(recoltable)/(1:hor.plan)
-  # recoltable.s[60:70,]
     }
       
   } #unit

@@ -41,7 +41,6 @@ landscape.dyn <- function(scn.name){
   source("mdl/wildfires.r")
   
   tic("  t")
-  options(warn=-1)
   select <- dplyr::select
   
   ## Load scenario definition (global variables and scenario parameters)
@@ -223,25 +222,18 @@ landscape.dyn <- function(scn.name){
       ## 3. HARVESTING
       ## 3.1. TIMBER SUPPLY CALCULATION
       ## It is only done during the first period if replanning is not selected, otherwise, each time step
-      
       ## AREA BASED
       if((t==time.seq[1] | replanif==1) & timber.supply=="area.based" & is.clearcut & t %in% cc.schedule){
-        # even-aged
-          harv.level <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
+          TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
                                 salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, t)
-          TS.CC.area <- harv.level
-        # uneven-aged
-          harv.level.pc <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
-          TS.PC.area <- harv.level.pc
+          TS.PC.area <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
       }
 
       ## VOLUME BASED - in development
       if((t==time.seq[1] | replanif==1) & timber.supply=="volume.based" & is.clearcut & t %in% cc.schedule){
-        #source("mdl/timber.partial.volume.r")
-        #source("mdl/timber.volume.r")
         TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                      salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t)
-        TS.PC.vol <- timber.partial.volume(land, hor.plan, km2.pixel, pc.step)
+                                   salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t, courbes)
+        TS.PC.vol <- timber.partial.volume(land, hor.plan, km2.pixel, pc.step, courbes)
       }
       
       ## 3.2. SELECTION OF HARVESTED CELLS BASED ON TIMBER SUPPLY
@@ -249,7 +241,7 @@ landscape.dyn <- function(scn.name){
       ## AREA BASED
       if(timber.supply == "area.based" & is.clearcut & t %in% cc.schedule){      
         harv.out <- harvest.area(land, cc.step, diff.prematurite, hor.plan, TS.CC.area, TS.PC.area, salvage.rate.FMU,
-                                 salvage.rate.event, harv.level, km2.pixel, t, p.failure, age.seed)
+                                 salvage.rate.event, km2.pixel, t, p.failure, age.seed, courbes)
         cc.cells <- harv.out[[1]]
         pc.cells <- harv.out[[2]]
         if(nrow(harv.out[[3]])>0){
@@ -266,7 +258,7 @@ landscape.dyn <- function(scn.name){
       ## VOLUME BASED 
       if(timber.supply == "volume.based" & is.clearcut & t %in% cc.schedule){
         harv.out <- harvest.vol(land, cc.step, diff.prematurite, hor.plan, TS.CC.vol,TS.PC.vol,
-                                salvage.rate.event, harv.level, km2.pixel, t)
+                                salvage.rate.event, harv.level, km2.pixel, t, courbes)
         cc.cells <- harv.out[[1]]
         pc.cells <- harv.out[[2]]
         if(nrow(harv.out[[3]])>0){

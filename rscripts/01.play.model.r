@@ -8,9 +8,9 @@ define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
 is.wildfires <- T
-is.sbw <- T
-is.clearcut <- F
-is.partialcut <- F
+is.sbw <- F
+is.clearcut <- T
+is.partialcut <- T
 replanif <- 1
 pigni.opt <- "static.exp"
 dump(c("nrun",  "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 

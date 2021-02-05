@@ -1,105 +1,77 @@
 ######################################################################################
-###  clear.cut()
-###
-###  Description >  Calculates sustained-yield levels and simulates clear cuts
-###                 harvesting for each management unit
-###
-###  Arguments >  
-###   land : appropiate selection fo the data frame of the state variables
-###   cc.step : basic time step of clear cuts
-###   age.mat : mature age for even aged populations to be harvested
-###   target.old.pct : minimal proportion of cells occupied by mature forests to 
-###                   to keep in each unit to 
-###                   maintain habitats for animal and plant species
-###   diff.prematurite  : a number of years before maturity (e.g. 80y). Defines the minimal age 
-###                       of stands that can be salvage-logged (after fire)
-###   hor.plan : length of the planning horizon when calculating sustained yield levels
-###   salvage.rate.event : Realistic maximal proportion of the mature forests that were burnt by a given fire event 
-###                        that can be salvage logged
-###   salvage.rate.FMU: Realistic maximal proportion of the harvested area that can be represneted by burnt stands
-###                  in a given FMU (to account for the fact that mills cannot take 100% burnt wood)
-###   write.tbl.outputs : if TRUE
-###   km2.pixel : number of km2 per pixel on the grid 
-###   irun : the current replica (used when writing results)
-###   t : the current time step  (used when writing results)
-###
-###  Details > For each management unit and each period, calculate a theoretically sustainable harvesting rate, 
-###            and harvest it in burnt and non-burnt stands
-###
-###  Value >  A vector of the indexes of the harvested cells.
+###  
 ######################################################################################
 
 harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.PC.vol, 
-                      salvage.rate.event, harv.level, km2.pixel, t){  
+                      salvage.rate.event, harv.level, km2.pixel, t, courbes){  
 
    
   #harv.level <- ref.harv.level
   cat("Select clearcut and partial cut cells - volume based", "\n" )
   
-  land2 <- land[!is.na(land$MgmtUnit),]
-    source("mdl/volume.vec.r") 
-  land2$vol <- (volume.vec(land2)*km2.pixel*100)
+  land2 <- land[!is.na(land$mgmt.unit),]
+  land2$vol <- (volume.vec(land2, courbes)*km2.pixel*100)
   land2 <- land2[order(-land2$vol),]
 
-  units <- as.character(sort(unique(land2$MgmtUnit[!is.na(land2$MgmtUnit)])))
+  units <- as.character(sort(unique(land2$mgmt.unit[!is.na(land2$mgmt.unit)])))
 
   
-  s.inc <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & Age>AgeMatu) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc <- filter(land2, !is.na(mgmt.unit) & is.na(exclus)) %>% group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
+  s.inc.mat <- filter(land2, !is.na(mgmt.unit) & is.na(exclus) & age>age.matu) %>% group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
 
   
   ## For those locations that can be harvested (included), differentiate those that have been burnt or killed
   ## by an outbreak, and then count the young (cannot be salvaged) vs the mature (can be salvaged)
-  s.inc.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0) %>% 
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.burnt <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSF==0 & Age>AgeMatu) %>% 
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5)) %>% 
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  s.inc.mat.kill <- filter(land2, !is.na(MgmtUnit) & is.na(Exclus) & TSSBW%in%c(0,5) & Age>AgeMatu) %>% 
-    group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  s.inc.burnt <- filter(land2, !is.na(mgmt.unit) & is.na(exclus) & tsfire==0) %>% 
+    group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
+  s.inc.mat.burnt <- filter(land2, !is.na(mgmt.unit) & is.na(exclus) & tsfire==0 & age>age.matu) %>% 
+    group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
+  s.inc.kill <- filter(land2, !is.na(mgmt.unit) & is.na(exclus) & tssbw %in%c(0,5)) %>% 
+    group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
+  s.inc.mat.kill <- filter(land2, !is.na(mgmt.unit) & is.na(exclus) & tssbw %in%c(0,5) & age>age.matu) %>% 
+    group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
   
   ## Also, look for zones at defforestation risk, both included and excluded
-  reg.fail.ex <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                        TSF==0, Age<=50, !is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
-  reg.fail.inc <- filter(land2, !is.na(MgmtUnit) & SppGrp %in% c("EPN", "SAB", "OthCB"), 
-                         TSF==0, Age<=50, is.na(Exclus)) %>% group_by(MgmtUnit) %>% summarise(x=length(MgmtUnit))
+  reg.fail.ex <- filter(land2, !is.na(mgmt.unit) & spp %in% c("EPN", "SAB", "OTH.RES.N"), 
+                        tsfire==0, age<=50, !is.na(exclus)) %>% group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
+  reg.fail.inc <- filter(land2, !is.na(mgmt.unit) & spp %in% c("EPN", "SAB", "OTH.RES.N"), 
+                         tsfire==0, age<=50, is.na(exclus)) %>% group_by(mgmt.unit) %>% summarise(x=length(mgmt.unit))
 
   land2 <- mutate(land2, rndm=runif(nrow(land2)))
 
-  even <- land2$SppGrp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$Exclus) & land2$rndm<=0.95
+  even <- land2$spp %in% c("EPN", "PET", "SAB", "OTH.RES.N", "OTH.RES.S", "OTH.FEU.N") & is.na(land2$exclus) & land2$rndm<=0.95
   sum(even) 
-  even[land2$SppGrp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$Exclus) & land2$rndm<=0.05] <- 1
-  even[land2$TSF==0] <- 1
+  even[land2$spp %in% c("BOJ", "ERS", "OTH.FEU.S")& is.na(land2$exclus) & land2$rndm<=0.05] <- 1
+  even[land2$tsfire==0] <- 1
   
   land.coniferes <- land2[even==1,] 
   land.feuillu.tol <- land2[even==0,] 
   
   land.ea <- rbind(land.coniferes, land.feuillu.tol)
-  s.ea <- group_by(land.ea, MgmtUnit) %>% summarise(x=length(MgmtUnit)) 
+  s.ea <- group_by(land.ea, mgmt.unit) %>% summarise(x=length(mgmt.unit)) 
   ### possibilité
   poss.init <-  TS.CC.vol # read.table("InitialVolume.txt", header=T)  
 
   ## Subset the mature even-aged cells from those that are harvestable
-  land.rec <- filter(land.ea, Age>=AgeMatu)
+  land.rec <- filter(land.ea, age>=age.matu)
   
   # initialisation des variables
   cc.cells.salv.tot <- cc.cells.unaff.tot <- cc.cells <- numeric(0)
   
   unit=2371 #units[18] # for testing
   for(unit in units){
-    #harv.level.u <- harv.level[harv.level$MgmtUnit == as.numeric(unit),2]
-    harv.level.u <- poss.init[poss.init$unit == as.numeric(unit),2]
+    #harv.level.u <- harv.level[harv.level$mgmt.unit == as.numeric(unit),2]
+    harv.level.u <- poss.init[poss.init$mgmt.unit == as.numeric(unit),2]
     harv.level.u <- as.numeric(harv.level.u)
     
-    land.ea.u <- land.ea[land.ea$MgmtUnit==unit,]
+    land.ea.u <- land.ea[land.ea$mgmt.unit==unit,]
     
     s.ea.u <- length(land.ea.u$cell.id)  
     
     # Subset of harvestable (mature even-aged) cells
-    land.ea.mat.u <- land.ea.u[land.ea.u$Age >= land.ea.u$AgeMatu,]
-    subland.salv.mature.burn <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & land.ea.u$TSF==0, ]
-    subland.salv.mature.sbw <- land.ea.u[(land.ea.u$Age >= (land.ea.u$AgeMatu-diff.prematurite)) & land.ea.u$TSSBW %in% c(0,5), ]  
+    land.ea.mat.u <- land.ea.u[land.ea.u$age >= land.ea.u$age.matu,]
+    subland.salv.mature.burn <- land.ea.u[(land.ea.u$age >= (land.ea.u$age.matu-diff.prematurite)) & land.ea.u$tsfire==0, ]
+    subland.salv.mature.sbw <- land.ea.u[(land.ea.u$age >= (land.ea.u$age.matu-diff.prematurite)) & land.ea.u$tssbw %in% c(0,5), ]  
     subland.salv.mature <- rbind(subland.salv.mature.burn,subland.salv.mature.sbw)
     
     # sélection de cellules récupérables en tenant compte
@@ -157,22 +129,22 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   land.uea$vol <- land.uea$vol/2
   
   ## The maturity age for partial cuts is half the maturity age for a clear cut
-  land.uea$AgeMatuPC <- round(land.uea$AgeMatu,-1)/2
+  land.uea$age.matu.pc <- round(land.uea$age.matu,-1)/2
   
   ## Subset of harvestable (i.e. mature uneven-aged, ot recently partial cut) cells
-  land.rec.pc <- filter(land.uea, Age>=(AgeMatu-15) & TSDist >=(AgeMatu-15) & TSPCut >=AgeMatuPC )
+  land.rec.pc <- filter(land.uea, age>=(age.matu-15) & tspcut >=age.matu.pc )  # & TSDist >=(age.matu-15) not longer exists this variable
   
   ## Get the number of cells to be managed under a partial-cut regime
-  s.uea <- group_by(land.uea, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
-  s.mat <- group_by(land.rec.pc, MgmtUnit) %>% summarise(x=length(MgmtUnit))    
+  s.uea <- group_by(land.uea, mgmt.unit) %>% summarise(x=length(mgmt.unit))    
+  s.mat <- group_by(land.rec.pc, mgmt.unit) %>% summarise(x=length(mgmt.unit))    
   
   harv.level.pc <- TS.PC.vol # read.table("InitialVolumePC.txt", header=T)
   pc.cells <- 0
-  for(unit in unique(land.uea$MgmtUnit)){  #unit=9351
+  for(unit in unique(land.uea$mgmt.unit)){  #unit=9351
 
   
-    poss.cp.ua <- harv.level.pc$x[harv.level.pc$MgmtUnit==unit]
-    cell.dispo.ua <- land.rec.pc[land.rec.pc$MgmtUnit==unit, ]
+    poss.cp.ua <- harv.level.pc$x[harv.level.pc$mgmt.unit==unit]
+    cell.dispo.ua <- land.rec.pc[land.rec.pc$mgmt.unit==unit, ]
     x <- sum(cell.dispo.ua$vol )
     pc.cells.ua <- numeric(0)
     xx <- 0
@@ -196,42 +168,42 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   ## areas are in cells, volumes are in m3
   
   
-  a.salv <- filter(land2, cell.id %in% cc.cells.salv.tot) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
-  a.unaff <- filter(land2, cell.id %in% cc.cells.unaff.tot) %>% group_by(MgmtUnit) %>% summarize(x=length(MgmtUnit))
+  a.salv <- filter(land2, cell.id %in% cc.cells.salv.tot) %>% group_by(mgmt.unit) %>% summarize(x=length(mgmt.unit))
+  a.unaff <- filter(land2, cell.id %in% cc.cells.unaff.tot) %>% group_by(mgmt.unit) %>% summarize(x=length(mgmt.unit))
   
   ### Volume logged, clearcut
-  v.salv <- filter(land.ea, cell.id %in% cc.cells.salv.tot) %>% group_by(MgmtUnit) %>% summarize(x=sum(vol))
-  v.unaff <- filter(land.ea, cell.id %in% cc.cells.unaff.tot) %>% group_by(MgmtUnit) %>% summarize(x=sum(vol))
+  v.salv <- filter(land.ea, cell.id %in% cc.cells.salv.tot) %>% group_by(mgmt.unit) %>% summarize(x=sum(vol))
+  v.unaff <- filter(land.ea, cell.id %in% cc.cells.unaff.tot) %>% group_by(mgmt.unit) %>% summarize(x=sum(vol))
   
   ## Area clearcut per species per management unit (clearcut)
   spp.ccut <- filter(land2, cell.id %in% c(cc.cells.salv.tot, cc.cells.unaff.tot)) %>%
-              group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) 
+              group_by(mgmt.unit, spp) %>% summarize(x=length(mgmt.unit)) 
   ## Volume clearcut per species per management unit (clearcut)
   spp.ccut.vol <- filter(land2, cell.id %in% c(cc.cells.salv.tot, cc.cells.unaff.tot)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol)) 
+    group_by(mgmt.unit, spp) %>% summarize(x=sum(vol)) 
   
   ## Area partial cut per management unit
-  a.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>% 
-    summarize(x=length(MgmtUnit)) 
+  a.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(mgmt.unit) %>% 
+    summarize(x=length(mgmt.unit)) 
   ## Volume partial cut per management unit
-  v.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(MgmtUnit) %>% 
+  v.pcut  <- filter(land2, cell.id %in% pc.cells) %>% group_by(mgmt.unit) %>% 
     summarize(x=sum(vol)) 
 
   ## Area clearcut per species per management unit (clearcut)
   spp.pcut <- filter(land2, cell.id %in% c(pc.cells)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=length(MgmtUnit)) 
+    group_by(mgmt.unit, spp) %>% summarize(x=length(mgmt.unit)) 
   ## Volume clearcut per species per management unit (clearcut)
   spp.pcut.vol <- filter(land2, cell.id %in% c(pc.cells)) %>%
-    group_by(MgmtUnit, SppGrp) %>% summarize(x=sum(vol))
+    group_by(mgmt.unit, spp) %>% summarize(x=sum(vol))
      
   ## Merge all the info, FMU level
-  track <- left_join(s.inc, s.ea, by="MgmtUnit") %>% left_join(s.mat, by="MgmtUnit") %>% 
-           left_join(s.inc.burnt, by="MgmtUnit") %>% left_join(s.inc.mat.burnt, by="MgmtUnit") %>%
-           left_join(s.inc.kill, by="MgmtUnit") %>% left_join(s.inc.mat.kill, by="MgmtUnit") %>%
-           left_join(reg.fail.ex, by="MgmtUnit") %>% left_join(reg.fail.inc, by="MgmtUnit") %>%
-           left_join(a.salv, by="MgmtUnit") %>% left_join(a.unaff, by="MgmtUnit") %>%
-           left_join(v.salv, by="MgmtUnit") %>% left_join(v.unaff, by="MgmtUnit") %>%  
-           left_join(a.pcut, by="MgmtUnit") %>% left_join(v.pcut, by="MgmtUnit")
+  track <- left_join(s.inc, s.ea, by="mgmt.unit") %>% left_join(s.mat, by="mgmt.unit") %>% 
+           left_join(s.inc.burnt, by="mgmt.unit") %>% left_join(s.inc.mat.burnt, by="mgmt.unit") %>%
+           left_join(s.inc.kill, by="mgmt.unit") %>% left_join(s.inc.mat.kill, by="mgmt.unit") %>%
+           left_join(reg.fail.ex, by="mgmt.unit") %>% left_join(reg.fail.inc, by="mgmt.unit") %>%
+           left_join(a.salv, by="mgmt.unit") %>% left_join(a.unaff, by="mgmt.unit") %>%
+           left_join(v.salv, by="mgmt.unit") %>% left_join(v.unaff, by="mgmt.unit") %>%  
+           left_join(a.pcut, by="mgmt.unit") %>% left_join(v.pcut, by="mgmt.unit")
   names(track)[2:ncol(track)] <- c("tot.inc", "even.age", "a.mat", "a.inc.burnt", "a.inc.mat.burnt",
      "a.inc.kill", "a.inc.mat.kill", "a.reg.fail.ex", "a.reg.fail.in", "area.salvaged", "area.unaff","v.salv",
      "v.unaff","a.pcut","v.pcut")
@@ -239,9 +211,9 @@ harvest.vol <- function(land, cc.step, diff.prematurite, hor.plan,TS.CC.vol,TS.P
   
   #### merge, species level
   
-  spp.track <- left_join(spp.ccut, spp.ccut.vol, by=c("MgmtUnit", "SppGrp")) %>% 
-                           left_join(spp.pcut, by=c("MgmtUnit", "SppGrp")) %>%
-                                       left_join(spp.ccut.vol, by=c("MgmtUnit", "SppGrp"))
+  spp.track <- left_join(spp.ccut, spp.ccut.vol, by=c("mgmt.unit", "spp")) %>% 
+                           left_join(spp.pcut, by=c("mgmt.unit", "spp")) %>%
+                                       left_join(spp.ccut.vol, by=c("mgmt.unit", "spp"))
   names(spp.track)[3:ncol(spp.track)] <- c("spp.ccut","spp.ccut.vol",
                                    "spp.pcut","spp.pcut.vol")
   ## Return the cell.id of the cut locations and the tracking info

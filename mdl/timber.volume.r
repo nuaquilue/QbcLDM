@@ -1,18 +1,13 @@
 ######################################################################################
-###  clear.cut()
-###
 ###  Description >  Calculates sustained-yield levels for each FMU in volume
 ###
 ######################################################################################
 
 timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                          salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
+                          salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t, courbes){  
 
   cat("Timber supply even-aged stands in volume", "\n" )
              
-  # Silence  
-  options(warn=-1)
-  
   # Initialize empty vector for the clear cut cells 
   cc.cells <- numeric(0)
   initial.volume<- numeric(0)
@@ -25,7 +20,7 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
   # Harvest rates have to be calculated separately for each management unit:
   unit=units[17] # for testing  unit="2662"
   for(unit in units){  
-    
+    cat(unit, "\n")
     # Separate locations that can be harvested (included) from those that cannot due to environmental or 
     # social constraints (excluded).
     # Some excluded areas are identified directly on the map based on local knowledge.
@@ -85,7 +80,7 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
       # VOLUME: ON ASSUME QUE LES PEUPLEMENTS SONT EXACTEMENT ? MATURIT?
       land.ea2 <- land.ea[land.ea$age.matu == age.mat.stra,]
       land.ea2$age <- land.ea2$age.matu
-      vol.max <- sum(volume.vec(land.ea2))*400
+      vol.max <- sum(volume.vec(land.ea2, courbes))*400
       
       recoltable2[j,] <- vol.max/(age.mat.stra/5) * (1:hor.plan)   
       # on revient ? l'?ge initial pour les calculs subs?quents
@@ -93,7 +88,7 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
       # Determine the period when maturity will be reached for the different age classes
       for (per in 0:(hor.plan-1)) {# per=0  
         # on calcule le volume des peuplements matures 
-        vol.act <- sum(volume.vec(land.ea2[land.ea2$age>=land.ea2$age.matu,]))*400
+        vol.act <- sum(volume.vec(land.ea2[land.ea2$age>=land.ea2$age.matu,], courbes))*400
         recoltable[j,per+1] <- vol.act
       # pour chaque periode, on update l'?ge des peuplements pour la p?riopde suivante
         land.ea2$age <- land.ea2$age + 5
@@ -111,8 +106,7 @@ timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.p
     initial.volume <- rbind(initial.volume,as.data.frame(cbind(unit,(vol.UA))))
   }
   
-  write.table(initial.volume, 
-              file = paste0(out.path, "/InitialVolume.txt"),
+  write.table(initial.volume, file = paste0(out.path, "/InitialVolume.txt"),
               quote=FALSE, sep="\t", row.names=TRUE, col.names=TRUE)
   return(initial.volume)
   

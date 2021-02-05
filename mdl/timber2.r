@@ -42,12 +42,12 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
   
   # Name of the management units.
   land2 <- land[!is.na(land$mgmt.unit),]
-  land2$even[land2$tsfire==0] <- 1
+  land2$even[land2$tsfire==0 & land2$spp!="NonFor"] <- 1 ## but only for forest spp. f
   
-  units <- as.character(sort(unique(land2$mgmt.unit[!is.na(land2$mgmt.unit)])))
+  units <- sort(unique(land2$mgmt.unit[!is.na(land2$mgmt.unit)]))
   
   # Harvest rates have to be calculated separately for each management unit:
-  unit=units[3] # for testing  unit="2662"
+  unit=units[6] # for testing  unit="2662"
   for(unit in units){  
     # cat(unit, "\n")
     # Separate locations that can be harvested (included) from those that cannot due to environmental or 
@@ -129,11 +129,9 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
     n.cc.cells <- c(n.cc.cells,n.cc.cells.UA)
     
   }
-  n.cc.cells <- as.data.frame(cbind(units,(n.cc.cells)))
-  names(n.cc.cells) <- c("mgmt.unit","x")
-  n.cc.cells$mgmt.unit <- as.numeric(as.character(n.cc.cells$mgmt.unit))
-  n.cc.cells$x <- as.numeric(as.character(n.cc.cells$x))
-
+  
+  ## Return number of cells to cut per mgmt unit (with actual names of management units)
+  n.cc.cells <- data.frame(mgmt.unit=units, x=n.cc.cells)
   return(n.cc.cells)  
   
 }

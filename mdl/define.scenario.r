@@ -89,7 +89,6 @@ define.scenario <- function(scn.name){
                  # once, during the first period
   replanif <- 0  # when 1, timber supply calculation is done at each time step to readjust harvest level
   # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
-  
   timber.supply <- "area.based"
   lutte <- FALSE # TRUE = reboisement systématique des peuplements conifériens qui deviennent feuillus
                  # suite a une perturbation
@@ -113,7 +112,7 @@ define.scenario <- function(scn.name){
   temp.suitability <- read.table("inputfiles/ThMeanTemp.txt", header=T)  
   prec.suitability <- read.table("inputfiles/ThAnnualPrecip.txt", header=T)  
   soil.suitability <- read.table("inputfiles/ThSoil.txt", header=T)  
-  
+  courbes <-  read.table("inputfiles/courbes_SI2.txt", header=T) # call yield curves (three site indexes)
   
   # Save all these variables in a .r file to be further loaded by landscape.dyn.r
   if(!file.exists(out.path))
