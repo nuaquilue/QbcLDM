@@ -44,7 +44,7 @@ harvest.area <- function(land, cc.step, diff.prematurite, hor.plan, TS.CC.area, 
   #even <- land2$spp %in% c("EPN", "PET", "SAB", "OthCB", "OthCT", "OthDB") & is.na(land2$exclus) & land2$rndm<=0.95
   #sum(even) 
   #even[land2$spp %in% c("BOJ", "ERS", "OthDT")& is.na(land2$exclus) & land2$rndm>0.95] <- 1
-  land2$even[land2$tsfire==0] <- 1
+  land2$even[land2$tsfire==0 & land2$spp!="NonFor"] <- 1  # NO change for NonFor cells
   land.coniferes <- land2[land2$even==1,] 
   land.feuillu.tol <- land2[land2$even==0,] 
   
