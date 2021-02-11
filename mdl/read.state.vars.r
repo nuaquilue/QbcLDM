@@ -156,11 +156,22 @@ read.state.vars <- function(work.path){
   }
   
   
-  ## 9. Assign "T" to missing soil types
+  ## 9. Assign Bioclimatic Domain to those forest cells without it informed
+  zcells <- filter(land, !is.na(spp) & is.na(bioclim.domain))
+  r <- 3
+  while(nrow(zcells)>0){
+    neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
+    values <- matrix(land$bioclim.domain[neighs$nn.idx], ncol=r^2)
+    land$bioclim.domain[!is.na(land$spp) & is.na(land$bioclim.domain)] <- apply(values, 1, find.moda)
+    zcells <- filter(land, !is.na(spp) & is.na(bioclim.domain))
+    r <- r+2
+  }
+  
+  ## 10. Assign "T" to missing soil types
   land$soil.type[!is.na(land$spp) & land$soil.type=="-"] <- "T"
   
   
-  ## 10. Re-equilibrate the age class distribution of locations with age <= 20 years
+  ## 11. Re-equilibrate the age class distribution of locations with age <= 20 years
   ## to compensate for a lack of precision in the initial values of regenerating stands 
   ## (due to the state of forest inventories in Québec)
     selection <- !is.na(land$spp) & land$spp!="NonFor"
@@ -175,7 +186,8 @@ read.state.vars <- function(work.path){
   selection <- !is.na(land$age) & land$age==120 & land$spp!="NonFor"; sum(selection)
   land$age[selection] <-  land$age[selection] + sample(c(-15,-10,-5,0), sum(selection), replace=T)
 
-  ## 8. Assign most abundant age of the neigbour cells to those cells with non informed values
+  
+  ## 12. Assign most abundant age of the neigbour cells to those cells with non informed values
   zcells <- filter(land, !is.na(spp) & is.na(age) & spp!="NonFor")
   r <- 3
   while(nrow(zcells)>0){
@@ -188,26 +200,26 @@ read.state.vars <- function(work.path){
   land$age <- as.numeric(land$age)
   
   
-  ## 11. Initialize other state variables
-  ## 11.1. Initalize the 4 time since last disturbance variables
+  ## 13. Initialize other state variables
+  ## 13.1. Initalize the 4 time since last disturbance variables
   ## The origin of any disturbance that may have impacted the study area is known.
   land$tsfire <- 100
   land$tssbw <- 100
   land$tsccut <- land$age
   
-  ## 11.2. Create a variable that records the time since the last change in forest composition 
+  ## 13.2. Create a variable that records the time since the last change in forest composition 
   ## i.e. transition to another dominant forest type.
   ## A cell will be considered potential "source" population for migration and range expansion 
   ## if this period is >= 50 years.
   ## This information is not available in current forest inventories, so it is set at 50 years at t=0
   land$tscomp <- 50
   
-  ## 11.3. Create a variable that records the time since the last partical cut
+  ## 13.3. Create a variable that records the time since the last partical cut
   ## To all locations be selectable at t=0, assign as time since the last partial cut, half the age of maturity
   land$tspcut <- (land$age.matu %/% 10)/2*10
   
   
-  ## 12. Give raster structure to each state variable to be saved in a layer stack 
+  ## 14. Give raster structure to each state variable to be saved in a layer stack 
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$frz; FRZone <- MAP
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$mgmt.unit; MgmtUnit <- MAP
   MAP <- MASK; MAP[!is.na(MAP[])] <- land$spp; SppGrp <- MAP
@@ -223,14 +235,14 @@ read.state.vars <- function(work.path){
   save(sp.input, file="inputlyrs/rdata/sp.input.rdata")
     
   
-  ## 13. Save the MASK raster in a .rdata with NA everywhere species is not informed
+  ## 15. Save the MASK raster in a .rdata with NA everywhere species is not informed
   dta <- data.frame(cell.id = 1:ncell(MASK)) %>% left_join(land, by="cell.id")
   MASK[is.na(dta$spp)] <- NA
   levelplot(MASK, margin=FALSE, colorkey=F, par.settings=viridisTheme())
   save(MASK, file="inputlyrs/rdata/mask.rdata")
   
   
-  ## 14. Keep only cells that are not NA and save the 'land' data frame with all state variables
+  ## 16. Keep only cells that are not NA and save the 'land' data frame with all state variables
   land <- land[!is.na(land$spp),]
   save(land, file="inputlyrs/rdata/land.rdata")
   

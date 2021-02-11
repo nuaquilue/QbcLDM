@@ -3,14 +3,9 @@
 ###
 ###  Description > Runs the Landscape Dynamics Model. 
 ###
-###  Arguments >
-###
 ###  Details > The landscape-level processes are fire, clear-cuts and partial-cuts
 ###            Post-disturbance regeneration and forest succession are based on 
 ###            state transition matrices.
-###
-###  Value > Tabular and spatial outputs are written in 'out.path' directory if  
-###          'write.tbl.outputs' and 'write.maps' are TRUE respectively.  
 ######################################################################################
 
 landscape.dyn <- function(scn.name){
@@ -42,6 +37,7 @@ landscape.dyn <- function(scn.name){
   
   tic("  t")
   select <- dplyr::select
+  
   
   ## Load scenario definition (global variables and scenario parameters)
   ## and customized scenario parameters
@@ -88,6 +84,7 @@ landscape.dyn <- function(scn.name){
   track.fires <- data.frame(run=NA, year=NA, frz=NA, fire.id=NA, wind=NA, target.size=NA, burnt.size=NA)
   track.target <- data.frame(run=NA, year=NA, frz=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
   track.fuel <- data.frame(run=NA, year=NA, frz=NA, type=NA, pct=NA)
+  track.burnt.fuel <- data.frame(run=NA, year=NA, frz=NA, type=NA, area=NA)
   track.cut <- data.frame(run=NA, year=NA,  mgmt.unit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
                            a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
                            area.salvaged=NA, area.unaff=NA, v.salv=NA, v.unaff=NA, a.pcut=NA, v.pcut=NA)
@@ -149,7 +146,8 @@ landscape.dyn <- function(scn.name){
     ## Age classes distribution per species and management unit
     land$age.class <- cut(land$age, breaks=breaks, include.lowest=TRUE, right=TRUE, labels=tags)
     track.spp.age.class <- rbind(track.spp.age.class, data.frame(run=irun, year=year.ini, 
-                           group_by(land, mgmt.unit, spp) %>% count(age.class)) %>% mutate(area=n*km2.pixel))
+                           filter(land, spp!="NonFor") %>% group_by(mgmt.unit, spp) %>% count(age.class)) 
+                           %>% mutate(area=n*km2.pixel))
     ## Suitability classes distribution per bioclim.domain 
     suitab <- suitability(land, temp.suitability, prec.suitability, soil.suitability, suboptimal) 
     aux <- left_join(suitab, select(land, cell.id, bioclim.domain), by="cell.id") %>%
@@ -197,8 +195,14 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(is.wildfires & t %in% fire.schedule){
         fire.out <- wildfires(land, fire.regime, fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, 
-                              is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, t, ncol(MASK))
+                              is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, 
+                              t, ncol(MASK), th.small.fire)
         burnt.cells <- fire.out[[1]]
+        if(length(burnt.cells)>0){
+          burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA)
+          track.burnt.fuel <- rbind(track.burnt.fuel, data.frame(run=irun, year=t+year.ini,
+              group_by(burnt.fuels, frz, type) %>% summarize(area=length(baseline)*km2.pixel)))
+        }
         if(nrow(fire.out[[4]])>0){
           track.target <- rbind(track.target, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[3]]))
@@ -206,7 +210,6 @@ landscape.dyn <- function(scn.name){
         }
         # Done with fires
         land$tsfire[land$cell.id %in% burnt.cells] <- 0
-        fire.schedule <- fire.schedule[-1]          
       }
       
         
@@ -216,7 +219,6 @@ landscape.dyn <- function(scn.name){
         kill.cells <- sbw.outbreak(land, severity=1, km2.pixel)
         # Done with outbreak
         land$tssbw[land$cell.id %in% kill.cells] <- 0
-        sbw.schedule <- sbw.schedule[-1]
       }
 
       ## 3. HARVESTING
@@ -251,8 +253,6 @@ landscape.dyn <- function(scn.name){
         # Done with clear cuts
         land$tspcut[land$cell.id %in% pc.cells] <- 0
         land$tsccut[land$cell.id %in% cc.cells] <- 0
-        cc.schedule <- cc.schedule[-1]  
-        pc.schedule <- pc.schedule[-1]  
       }
       
       ## VOLUME BASED 
@@ -320,9 +320,7 @@ landscape.dyn <- function(scn.name){
         ## Natural succession of tree spp at every 40 years starting at Tcomp = 70
         chg.comp.cells <- filter(land, (age-age.matu) %in% seq(40,400,40) & tscomp>=70) %>% select(cell.id)
         if(length(unlist(chg.comp.cells))>0){
-  #        target.cells <- land[land$cell.id %in% unlist(chg.comp.cells), c("cell.id", "x", "y")]
           buffer <- buffer.mig4(land, unlist(chg.comp.cells), spp.colonize.persist)
-  #       buffer <- buffer.mig(land, unlist(chg.comp.cells), potential.spp)
           land$spp[land$cell.id %in% unlist(chg.comp.cells)] <- 
             forest.trans(land, unlist(chg.comp.cells), forest.succ, buffer, suitab, 
                          spp.colonize.persist, dtype="S", p.failure, age.seed, suboptimal, enfeuil)          
@@ -344,7 +342,7 @@ landscape.dyn <- function(scn.name){
       land$age[land$cell.id %in% burnt.cells] <- 0
       land$age[land$cell.id %in% kill.cells] <- 0
       land$age[land$cell.id %in% cc.cells] <- 0
-      land$tspcut[land$cell.id %in% c(cc.cells,kill.cells,burnt.cells)] <- -(land$age.matu/2)  ## ¿?
+      land$tspcut[land$cell.id %in% c(cc.cells, kill.cells, burnt.cells)] <- 0 # -(land$age.matu/2)  # negative values!!!
       
 
       ## Finally, Aging: Increment Time Since Disturbance and Time Last Forest Composition change by time.step 
@@ -409,6 +407,7 @@ landscape.dyn <- function(scn.name){
     write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
     track.fires$rem <- track.fires$target.size-track.fires$burnt.size
     write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
+    write.table(track.burnt.fuel[-1,], paste0(out.path, "/BurntFuels.txt"), quote=F, row.names=F, sep="\t")  
   }
   write.table(track.spp.firezone[-1,], paste0(out.path, "/SppByFireZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fuel[-1,], paste0(out.path, "/FuelByFireZone.txt"), quote=F, row.names=F, sep="\t")

@@ -30,7 +30,7 @@ define.scenario <- function(scn.name){
   nrun <- 1
   
   ## Flags to write spatial and tabular output data
-  write.maps <- TRUE
+  write.maps <- FALSE
   plot.fires <- FALSE
   
   ## Processes of the model included (TRUE-IN our FALSE-OUT),
@@ -66,6 +66,7 @@ define.scenario <- function(scn.name){
   rpb <- 0.3
   pb.upper.th <- 0.75 # prob.burning >= th --> cell always burns
   pb.lower.th <- -1 # prob.burning < th --> cell never burns
+  th.small.fire <- -1
   
   
   ## SPRUCE BUDWORM parameters:  

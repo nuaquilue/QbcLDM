@@ -1,21 +1,51 @@
 ############################################ RUN A SCN ##################################################
 rm(list=ls())
 # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
-source("mdl/define.scenario.r")
-source("mdl/landscape.dyn.r")  
-scn.name <- "Test_nothing"
+source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
+scn.name <- "Test_nothing2"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
+time.horizon <- 10
 is.wildfires <- T
 is.sbw <- F
 is.clearcut <- T
 is.partialcut <- T
 replanif <- 1
-pigni.opt <- "static.exp"
-dump(c("nrun",  "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
-       "pigni.opt", "replanif"), paste0("outputs/", scn.name, "/scn.custom.def.r"))
+dump(c("nrun",  "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", "time.horizon",
+        "replanif"), paste0("outputs/", scn.name, "/scn.custom.def.r"))
 landscape.dyn(scn.name)
+
+
+############################################ RUN A SET OF SCN ##################################################
+library(readxl)
+rm(list=ls())
+source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
+scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj1")
+for(i in 1){
+  scn.name <- scenarios$scn.name[i]
+  define.scenario(scn.name)
+  ## general
+  nrun <- scenarios$nrun[i]
+  write.maps <- F
+  ## processes
+  is.wildfires <- as.logical(scenarios$is.wildfires[i])
+  is.sbw <- as.logical(scenarios$is.sbw[i])
+  is.clearcut <- as.logical(scenarios$is.clearcut[i])
+  is.partialcut <- as.logical(scenarios$is.partialcut[i])
+  ## modifiers of target area
+  is.fuel.modifier <- as.logical(scenarios$is.fuel.modifier[i])
+  is.clima.modifier <- as.logical(scenarios$is.clima.modifier[i])
+  ## scenario parameters
+  clim.scn <- ifelse(scenarios$clim.scn[i]=="NA", NA, scenarios$clim.scn[i])
+  th.small.fire <- scenarios$th.small.fire[i]
+  replanif <- 1
+  dump(c("nrun", "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
+         "is.fuel.modifier", "is.clima.modifier", "clim.scn", "th.small.fire", "replanif"), 
+       paste0("outputs/", scn.name, "/scn.custom.def.r"))
+  landscape.dyn(scn.name)
+}
+
 
 
 ##################################### BUILD INITIAL CONDITIONS ###########################################

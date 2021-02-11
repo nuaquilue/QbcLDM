@@ -9,7 +9,7 @@ plot(MAP, col=plasma(4))
 
 #################################### BURNT RATES ################################################
 library(tidyverse)
-scn <- "Test_rcp85.fires.cuts"
+scn <- "Test_rcp85.fires.cuts.replanif0"
 br <- read.table(paste0("outputs/", scn, "/BurntRates.txt"), header=T)
 brs <-pivot_longer(br, br:target.area) %>% filter(zone %in% c("A", "C" ,"D", "F"))
 jpeg(filename=paste0("C:/work/qbcmod/DataOut/BurnRates_", scn, ".jpg"))
@@ -30,6 +30,25 @@ jpeg(filename=paste0("C:/work/qbcmod/DataOut/FuelZone_", scn, ".jpg"))
 ggplot(data=fuel, aes(x=year, y=pct, colour=zone, linetype=type)) + 
   geom_line(size=1.2) + facet_wrap(~zone) + theme_classic() + scale_color_brewer(palette="Set1")
 dev.off()
+
+
+#################################### PCT FUEL BURNT ####################################
+########## Stacked area chart ##########
+library(viridis)
+scn <- "Test_nothing"
+burnt.fuels <- read.table(paste0("outputs/", scn, "/BurntFuels.txt"), header=T) 
+all <- group_by(burnt.fuels, run, year) %>% summarize(tot=sum(area))
+data <- group_by(burnt.fuels, run, year, type) %>% summarize(area=sum(area)) %>% 
+  left_join(all, by=c("run", "year")) %>% mutate(pct=area/tot*100)
+
+# Plot
+ggplot(data, aes(x=year, y=pct, fill=type)) + 
+  geom_area(alpha=1 , size=.5, colour="grey70") +
+  scale_fill_viridis(discrete = T) + theme_bw() +
+  ggtitle("Percentage of burnt fuels")
+
+
+
 
 
 #################################### Compare target areas ####################################

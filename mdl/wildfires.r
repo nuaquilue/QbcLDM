@@ -22,9 +22,12 @@
 
 
 wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, fuel.types.modif, pigni.opt, 
-                      is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, t, ncol.raster) {
+                      is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, 
+                      t, ncol.raster, th.small.fire) {
   
   cat("Wildfires", "\n" )
+  options(warn=-1)  # to avoid unecessary warnings about "frz" being factor of character when joining
+                    # "track" type data.frames
   
   ## Function to select items not in a vector
   `%notin%` <- Negate(`%in%`)
@@ -148,7 +151,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         fire.class <- sample(1:nrow(fs.dist), 1, replace=F, p=fs.dist$p) 
         fire.target.size <- min(rdunif(1, fs.dist$lower[fire.class], fs.dist$upper[fire.class]), 
                                 fire.regime$max[fire.regime$zone==izone])
-        ## Transform fire area (in km2) in fire size target (in pixels), some fires will lose size
+        ## Transform fire size (in km2) in fire target area (in pixels), some fires will lose area
         ## while others will gain... on average the difference should be 0
         fire.target.area <- pmax(1, round(fire.target.size/km2.pixel))
       }
@@ -254,7 +257,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   track.target <- track.target[-1,]
   track.fire <- track.fire[-1,] 
   # Size (in km2) of each zone
-  zone.size <- group_by(land, frz) %>% summarize(area=length(frz)*km2.pixel)
+  zone.size <- group_by(land, frz) %>% summarize(area=length(frz)*km2.pixel) 
   # Mean flammability of what has been burnt
   burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA) %>% 
                  group_by(frz) %>%  summarize(indx.combust.burnt=mean(baseline))
@@ -265,27 +268,13 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
                  left_join(zone.size, by="frz") %>% left_join(current.fuels, by="frz") %>%
                  mutate(fire.cycle=round(time.step*area/burnt.area), indx.combust=x) %>% select(-area, -x) %>% 
                  left_join(burnt.fuels, by="frz") 
-  
-  ## Track fuels
-  # track.fuels <- left_join(current.fuels, burnt.fuels, by="zone")
-  # names(track.fuels) <- c("zone", "pctg.zone", "pctg.burnt")
-  # nb <-  length(unique(na.omit(fuels$baseline)))
-  # nzones <- length(unique(fuels$zone))
-  # current.fuels
-  # tf1 <- aggregate(baseline  ~  zone, data=fuels, mean)
-  # tf2 <- aggregate(baseline  ~  zone, data=fuels.burnt, mean)
-  #track.fuels <- data.frame(table(fuels$zone, fuels$baseline) / matrix(table(fuels$zone), nrow=nzones, ncol=nb),
-  #                          table(fuels.burnt$zone, fuels.burnt$baseline) / matrix(table(fuels.burnt$zone), nrow=nzones, ncol=nb)) %>%
-  #              select(-Var1.1, -Var2.1)
-  #names(track.fuels) <- c("zone", "flam", "pctg.zone", "pctg.burnt")
-  # track.fuels$pctg.burnt[is.na(track.fuels$pctg.burnt)] <- 0
 
-  
-  ## Return the index of burnt cells and the tracking data.frames
+    ## Return the index of burnt cells and the tracking data.frames
   ## For some reason I still don't know, a few (little) times, there are duplicates in burnt.cells, 
   ## what causes errors in buffer.mig (for example). 
   ## I will need to find the mistake and solve it, but by now I simply retrun unique(burnt.cells).
   ## However, in such cases length(burnt.cells)*km2.pixel < aburnt at the zone level
-  return(list(burnt.cells=unique(burnt.cells), track.target=track.target, track.regime=track.regime, track.fire=track.fire))  
+  return(list(burnt.cells=unique(burnt.cells), track.target=track.target, track.regime=track.regime, 
+              track.fire=track.fire))  
   
 }
