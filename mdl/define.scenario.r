@@ -19,9 +19,9 @@ define.scenario <- function(scn.name){
   out.path <- paste0("outputs/", scn.name)
 
   ## Time lenght in years of a model simulation
-  ## 18 time steps of 5 years, it covers the period 2010-2100.
-  time.horizon <- 2100-2010  
-  year.ini <- 2010
+  ## 16 time steps of 5 years, it covers the period 2020-2100.
+  time.horizon <- 2100-2020  
+  year.ini <- 2020
   
   ## Time step
   time.step <- 5

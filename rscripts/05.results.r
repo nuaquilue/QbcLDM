@@ -35,19 +35,35 @@ dev.off()
 #################################### PCT FUEL BURNT ####################################
 ########## Stacked area chart ##########
 library(viridis)
-scn <- "Test_nothing"
+library(tidyverse)
+scn <- "Scn_WF_TH_NoCC_Both_FuelTypeBase"
 burnt.fuels <- read.table(paste0("outputs/", scn, "/BurntFuels.txt"), header=T) 
 all <- group_by(burnt.fuels, run, year) %>% summarize(tot=sum(area))
 data <- group_by(burnt.fuels, run, year, type) %>% summarize(area=sum(area)) %>% 
-  left_join(all, by=c("run", "year")) %>% mutate(pct=area/tot*100)
+  left_join(all, by=c("run", "year")) %>% mutate(pct=area/tot*100) %>% 
+  group_by(year, type) %>% summarise(pct.burnt=mean(pct))
 
 # Plot
-ggplot(data, aes(x=year, y=pct, fill=type)) + 
-  geom_area(alpha=1 , size=.5, colour="grey70") +
-  scale_fill_viridis(discrete = T) + theme_bw() +
-  ggtitle("Percentage of burnt fuels")
+tiff(paste0("rscripts/outs/PctBurntFuel_", scn, ".tiff"), width=300, heigh=300)
+ggplot(data, aes(x=year, y=pct.burnt, fill=type)) + 
+  geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
+  theme_bw() + theme(legend.position="none") + ggtitle(substr(scn,5,90))
+dev.off()
 
 
+## Fuel burnt according to the availability of fuel 
+zone.area <- read.table(paste0("outputs/", scn, "/SppByFireZone.txt"), header=T) %>% 
+  filter(run==1,year==2020) %>% group_by(frz) %>% summarize(area.zone=sum(area)); zone.area
+fuel.zone  <- read.table(paste0("outputs/", scn, "/FuelByFireZone.txt"), header=T) %>% 
+  left_join(zone.area, by="frz") %>% mutate(area.type=pct*area.zone) %>% select(-pct)
+data <- left_join(burnt.fuels, fuel.zone, by=c("run", "year", "frz", "type")) %>%
+        group_by(run, year, type) %>% summarize(area.burnt=sum(area), area.type=sum(area.type)) %>% 
+        mutate(pct=area.burnt/area.type*100) %>% group_by(year, type) %>% summarise(pct.burnt=mean(pct))
+tiff(paste0("rscripts/outs/PctBurntOverFuel_", scn, ".tiff"), width=300, heigh=300)
+ggplot(data, aes(x=year, y=pct.burnt, fill=type)) + 
+  geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
+  theme_bw() + theme(legend.position="none")+ ggtitle(substr(scn,5,90))
+dev.off()
 
 
 

@@ -11,3 +11,4 @@ inputfiles/invented
 developMB
 inputlyrs/*.zip
 *.xlsx
+rscripts/outs/*.*

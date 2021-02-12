@@ -3,7 +3,7 @@ fuel.type <- function(land, fuel.types.modif, fire.target.area=NA){
   ## Fuel type according species and age
   fuel <- data.frame(cell.id=land$cell.id, frz=land$frz)
   fuel$type[land$spp %in% c("BOJ", "ERS", "NonFor", "OTH.FEU.S")] <- "hardwood"
-  fuel$type[land$spp %in% c("PET", "OTH.FEU.N")] <- "pioneer"  ## à voir, mais pour être coherent avec le ms
+  fuel$type[land$spp %in% c("PET", "OTH.FEU.N")] <- "pioneer" 
   fuel$type[land$spp %in% c("EPN", "SAB", "OTH.RES.S", "OTH.RES.N") & land$age<=40] <- "young.conif"
   fuel$type[land$spp %in% c("EPN", "SAB", "OTH.RES.S", "OTH.RES.N") & land$age>40] <- "mature.conif"
   fuel$type <- as.factor(fuel$type)

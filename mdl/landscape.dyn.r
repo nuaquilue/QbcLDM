@@ -169,7 +169,7 @@ landscape.dyn <- function(scn.name){
       ## The first time step (t=0) we start at 2010, so the first column to start with is column 4 (temp2)
       if(!is.na(clim.scn) & t < time.horizon){
         # Temp
-        aux <- cc.temp[,c(1,3+which(time.seq==t))]
+        aux <- cc.temp[,c(1,3+which(time.seq==t))] ## @@@ CHANGING AS NOW WE START IN 2020
         names(aux) <- c("cell.id", "temp")
         land <- select(land, -temp) %>% left_join(aux, by="cell.id")
         # Clean NAs
