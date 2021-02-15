@@ -32,11 +32,26 @@ ggplot(data=fuel, aes(x=year, y=pct, colour=zone, linetype=type)) +
 dev.off()
 
 
+
+#################################### PCT FUEL CLASSES per FIRE ZONE ####################################
+scn <- "Scn_WF_TH_RCP45_Both_FuelTypeBase"
+fuels <- read.table(paste0("outputs/", scn, "/FuelByFireZone.txt"), header=T) 
+data <- group_by(fuels, run, year, type) %>% summarize(pct=sum(pct)) %>% 
+        group_by(year, type) %>% summarise(pct=mean(pct))
+tiff(paste0("rscripts/outs/PctFuel_", scn, ".tiff"), width=300, heigh=300)
+ggplot(data, aes(x=year, y=pct, fill=type)) + 
+  geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
+  theme_bw() + theme(legend.position="none") + ggtitle(substr(scn,5,90))
+dev.off()
+
+
+
+
 #################################### PCT FUEL BURNT ####################################
 ########## Stacked area chart ##########
 library(viridis)
 library(tidyverse)
-scn <- "Scn_WF_TH_NoCC_Both_FuelTypeBase"
+scn <- "Scn_WF_TH_RCP45_Both_FuelTypeBase"
 burnt.fuels <- read.table(paste0("outputs/", scn, "/BurntFuels.txt"), header=T) 
 all <- group_by(burnt.fuels, run, year) %>% summarize(tot=sum(area))
 data <- group_by(burnt.fuels, run, year, type) %>% summarize(area=sum(area)) %>% 
@@ -49,7 +64,6 @@ ggplot(data, aes(x=year, y=pct.burnt, fill=type)) +
   geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
   theme_bw() + theme(legend.position="none") + ggtitle(substr(scn,5,90))
 dev.off()
-
 
 ## Fuel burnt according to the availability of fuel 
 zone.area <- read.table(paste0("outputs/", scn, "/SppByFireZone.txt"), header=T) %>% 

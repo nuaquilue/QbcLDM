@@ -2,18 +2,20 @@
 rm(list=ls())
 # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scn.name <- "Test_nothing2"
+scn.name <- "Test_nothing45"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
-time.horizon <- 10
+time.horizon <- 2100-2020
+clim.scn <- "rcp45"
 is.wildfires <- T
 is.sbw <- F
 is.clearcut <- T
 is.partialcut <- T
 replanif <- 1
-dump(c("nrun",  "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", "time.horizon",
-        "replanif"), paste0("outputs/", scn.name, "/scn.custom.def.r"))
+dump(c("nrun",  "write.maps", "time.horizon", "clim.scn", "is.wildfires", "is.sbw", 
+       "is.clearcut", "is.partialcut", "replanif"), 
+     paste0("outputs/", scn.name, "/scn.custom.def.r"))
 landscape.dyn(scn.name)
 
 
@@ -22,7 +24,7 @@ library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
 scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj1")
-for(i in 4:6){
+for(i in 13:18){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general

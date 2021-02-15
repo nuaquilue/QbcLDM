@@ -45,7 +45,7 @@ define.scenario <- function(scn.name){
   
   ## CLIMATE CHANGE parameters
   clim.scn <- NA # or "rcp45" or "rcp85"
-  gcm.sep <- "GCM4_ESM2_10km"
+  gcm.sep <- "MIROC_ESM_CHEM_10km"
   
   
   ## FIRE parameters

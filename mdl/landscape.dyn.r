@@ -61,16 +61,24 @@ landscape.dyn <- function(scn.name){
   ## Load temperature and precipitation 5-year predictions according to the climatic scenario.
   ## If climate change is not activated, initial temp and precip will be used for the whole simulation.
   if(!is.na(clim.scn)){
-    load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_ModCan.rdata")) 
-    load(file=paste0("inputlyrs/rdata/precip_", clim.scn, "_ModCan.rdata"))  
+    load(file=paste0("inputlyrs/rdata/temp_", clim.scn, "_MIROC_ESM_CHEM.rdata")) 
+    load(file=paste0("inputlyrs/rdata/prec_", clim.scn, "_MIROC_ESM_CHEM.rdata"))  
   }
   
 
   ## Build the discrete time sequence according to time.step
   ## 0  5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85  # MATHIEU
-  ## 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90  # NÚRIA
-  ## lenght(time.seq) is 18
+  ## 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80   # NÚRIA
+  ## lenght(time.seq) is 16
   time.seq <- seq(time.step, time.horizon, time.step) 
+  ## Set the scheduling of the processes
+  fire.schedule <- seq(time.step, time.horizon, fire.step)
+  cc.schedule <- seq(time.step, time.horizon, cc.step)
+  pc.schedule <- seq(time.step, time.horizon, pc.step)
+  # if(sbw.step.fix) 
+  sbw.schedule <- c(5,35,70)
+  # else 
+  #   sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
   
   
   ## Tracking data.frames 
@@ -99,16 +107,6 @@ landscape.dyn <- function(scn.name){
     
     ## Load dynamic state variables 
     load(file="inputlyrs/rdata/land.rdata")
-    
-    
-    ## Set the scheduling of the processes
-    fire.schedule <- seq(time.step, time.horizon, fire.step)
-    cc.schedule <- seq(time.step, time.horizon, cc.step)
-    pc.schedule <- seq(time.step, time.horizon, pc.step)
-    # if(sbw.step.fix) 
-    sbw.schedule <- c(5,35,70)
-    # else 
-    #   sbw.schedule <- sample(c(30,35,40), size=floor(time.horizon/30), replace=TRUE)
     
     
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
@@ -164,30 +162,20 @@ landscape.dyn <- function(scn.name){
       print(paste0("scn: ", scn.name, " - run: ", irun, "/", nrun, " - time: ", year.ini+t-time.step, " to ", t+year.ini))
       
       ## Update climatic variables at each time step if climate change is activated
-      ## Column 1 is cell.index, the following columns account for climate in 2000-2004, 2005-2009, 2010-2014, etc.
-      ## The last column (temp19) then corresponds to the period 2095-2100
-      ## The first time step (t=0) we start at 2010, so the first column to start with is column 4 (temp2)
+      ## Column 1 is cell.index, the following columns are temp (precip) in 
+      ## 2020-2025, 2025-2030, 2030-2035, ... etc.
+      ## The last column (temp95) then corresponds to the period 2095-2100
+      ## The first time step (t=5) we start with climate 2020-2025
       if(!is.na(clim.scn) & t < time.horizon){
         # Temp
-        aux <- cc.temp[,c(1,3+which(time.seq==t))] ## @@@ CHANGING AS NOW WE START IN 2020
+        aux <- cc.temp[,c(1,1+which(time.seq==t))] 
         names(aux) <- c("cell.id", "temp")
         land <- select(land, -temp) %>% left_join(aux, by="cell.id")
-        # Clean NAs
-        r <- 5
-        zcells <- filter(land, !is.na(spp) & is.na(temp) & spp!="NonFor")
-        neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
-        values <- matrix(land$temp[neighs$nn.idx], ncol=r^2)
-        land$temp[!is.na(land$spp) & is.na(land$temp) & land$spp!="NonFor"] <- apply(values, 1, mean, na.rm=T)
         # Precip
-        aux <- cc.precip[,c(1,3+which(time.seq==t))]
+        aux <- cc.prec[,c(1,1+which(time.seq==t))]
         names(aux) <- c("cell.id", "prec")
         land <- select(land, -prec) %>% left_join(aux, by="cell.id")
-        # Clean NAs
-        zcells <- filter(land, !is.na(spp) & is.na(precip) & spp!="NonFor")
-        neighs <- nn2(select(land, x, y), select(zcells, x,y), searchtype="priority", k=r^2)
-        values <- matrix(land$precip[neighs$nn.idx], ncol=r^2)
-        land$precip[!is.na(land$spp) & is.na(land$precip) & land$spp!="NonFor"] <- apply(values, 1, mean, na.rm=T)
-      }
+       }
 
       
       ##################################### PROCESSES OF CHANGE #####################################
