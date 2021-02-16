@@ -9,12 +9,17 @@ plot(MAP, col=plasma(4))
 
 #################################### BURNT RATES ################################################
 library(tidyverse)
-scn <- "Test_rcp85.fires.cuts.replanif0"
+scn <- "Scn_WF_RCP85.is.clima.modif_Both_FuelTypeBase"
 br <- read.table(paste0("outputs/", scn, "/BurntRates.txt"), header=T)
-brs <-pivot_longer(br, br:target.area) %>% filter(zone %in% c("A", "C" ,"D", "F"))
+brs <- group_by(br, year, frz) %>% summarise(br=mean(br), brvar=mean(brvar),
+       brfuel=mean(brfuel), brclima=mean(brclima), target.area=mean(target.area)) %>% 
+       # select(-target.area) %>% pivot_longer(br:brclima) 
+     pivot_longer(br:target.area) 
 jpeg(filename=paste0("C:/work/qbcmod/DataOut/BurnRates_", scn, ".jpg"))
-ggplot(data=brs, aes(x=year, y=value, colour=name, group=name)) + 
-  geom_line(size=1.2) + facet_wrap(~zone) + theme_classic() + scale_color_brewer(palette="Set1")
+ggplot(data=brs, aes(x=year, y=value, colour=name, group=name)) +  geom_line(size=1.2) +
+  facet_wrap(~frz, scales="free_y") + theme_classic() + scale_color_brewer(palette="Set1") +
+  geom_vline(xintercept=2040, linetype="dashed", color = "black") + 
+  geom_vline(xintercept=2070, linetype="dashed", color = "black")  
 dev.off()
 
 fr <- read.table(paste0("outputs/", scn, "/FireRegime.txt"), header=T)
