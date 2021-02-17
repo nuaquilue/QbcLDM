@@ -7,34 +7,96 @@ MAP[!is.na(MASK[])] <- pigni$p
 plot(MAP, col=plasma(4))
 
 
-#################################### BURNT RATES ################################################
+#################################### TARGET AREA TO BE BURNT  ############################################
 library(tidyverse)
-scn <- "Scn_WF_RCP85.is.clima.modif_Both_FuelTypeBase"
-br <- read.table(paste0("outputs/", scn, "/BurntRates.txt"), header=T)
-brs <- group_by(br, year, frz) %>% summarise(br=mean(br), brvar=mean(brvar),
-       brfuel=mean(brfuel), brclima=mean(brclima), target.area=mean(target.area)) %>% 
-       # select(-target.area) %>% pivot_longer(br:brclima) 
-     pivot_longer(br:target.area) 
-jpeg(filename=paste0("C:/work/qbcmod/DataOut/BurnRates_", scn, ".jpg"))
-ggplot(data=brs, aes(x=year, y=value, colour=name, group=name)) +  geom_line(size=1.2) +
-  facet_wrap(~frz, scales="free_y") + theme_classic() + scale_color_brewer(palette="Set1") +
+list.scn <- c("Scn_WF_NoCC.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_NoCC.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_NoCC.is.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.fuel.modif_Both_FuelTypeBase")
+clim <- c(rep("NoCC",3), rep("RCP45",3), rep("RCP85",3))
+modif <- c("both", "clima", "fuel", "both", "clima", "fuel", "both", "clima", "fuel")
+dta <- data.frame(run=NA, year=NA, frz=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA, clim=NA, modif=NA)
+for(i in 1:9){
+  br <- read.table(paste0("outputs/", list.scn[i], "/BurntRates.txt"), header=T)  %>% 
+        mutate(clim=clim[i], modif=modif[i])
+  dta <- rbind(dta, br)
+}              
+dta <- dta[-1,]
+# plot
+zone <- "Z6"
+brs <- filter(dta, frz==zone) %>% group_by(year, clim, modif) %>% 
+       summarise(br=mean(br), brvar=mean(brvar), brfuel=mean(brfuel), 
+                 brclima=mean(brclima), target.area=mean(target.area)) %>% 
+       pivot_longer(br:target.area)# %>% filter(name!="target.area")
+names(brs)[5] <- "km2"
+jpeg(filename=paste0("C:/work/qbcmod/DataOut/BurnRates_", zone, ".jpg"), width=800, height=600)
+ggplot(data=brs, aes(x=year, y=km2, colour=name, group=name)) +  geom_line(size=1.2) +
+  facet_grid(clim~modif) + theme_classic() + scale_color_brewer(palette="Set1") +
+  theme(plot.title = element_text(size=22, face="bold"),
+        axis.title.x = element_text(size=20),
+        axis.title.y = element_text(size=20),
+        axis.text=element_text(size=14),
+        strip.text.x = element_text(size=16, face="bold"),
+        strip.text.y = element_text(size=16, face="bold"),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 14)) +
   geom_vline(xintercept=2040, linetype="dashed", color = "black") + 
-  geom_vline(xintercept=2070, linetype="dashed", color = "black")  
+  geom_vline(xintercept=2070, linetype="dashed", color = "black")  + ggtitle(zone)
 dev.off()
 
-fr <- read.table(paste0("outputs/", scn, "/FireRegime.txt"), header=T)
-fr.indx <- select(fr, year, zone, indx.combust, indx.combust.burnt) %>% 
-  pivot_longer(indx.combust:indx.combust.burnt)
-jpeg(filename=paste0("C:/work/qbcmod/DataOut/IndxCombust_", scn, ".jpg"))
-ggplot(data=fr.indx, aes(x=year, y=value, colour=zone, linetype=name)) + 
-  geom_line(size=1.2) + facet_wrap(~zone) + theme_classic() + scale_color_brewer(palette="Set1")
+ 
+#################################### FUEL TYPE PER FIRE REGIME ZONE  ############################################
+library(tidyverse)
+library(viridis)
+list.scn <- c("Scn_WF_NoCC.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_NoCC.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_NoCC.is.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP45.is.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.clima.fuel.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.clima.modif_Both_FuelTypeBase",
+              "Scn_WF_RCP85.is.fuel.modif_Both_FuelTypeBase")
+clim <- c(rep("NoCC",3), rep("RCP45",3), rep("RCP85",3))
+modif <- c("both", "clima", "fuel", "both", "clima", "fuel", "both", "clima", "fuel")
+dta <- data.frame(run=NA, year=NA, frz=NA, type=NA, pct=NA, clim=NA, modif=NA)
+for(i in 1:9){
+  aux <- read.table(paste0("outputs/", list.scn[i], "/FuelByFireZone.txt"), header=T)  %>% 
+         mutate(clim=clim[i], modif=modif[i])
+  dta <- rbind(dta, aux)
+}              
+dta <- dta[-1,]
+
+zone <- "Z6"
+fuels <- filter(dta, frz==zone) %>% group_by(year, clim, modif, type) %>% summarise(pct=mean(pct)) 
+jpeg(filename=paste0("C:/work/qbcmod/DataOut/FuelByZone_", zone, ".jpg"), width=800, height=600)
+ggplot(fuels, aes(x=year, y=pct, fill=type)) + facet_grid(clim~modif) +
+  geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
+  theme_classic() +  ggtitle(zone) +
+  theme(legend.position="bottom",
+      plot.title = element_text(size=22, face="bold"),
+      axis.title.x = element_text(size=20),
+      axis.title.y = element_text(size=20),
+      axis.text=element_text(size=14),
+      strip.text.x = element_text(size=16, face="bold"),
+      strip.text.y = element_text(size=16, face="bold"),
+      legend.title = element_text(size = 14),
+      legend.text = element_text(size = 14)) 
 dev.off()
 
-fuel <- read.table(paste0("outputs/", scn, "/FuelByFireZone.txt"), header=T) %>% filter(zone!="Z" & zone!="Y")
-jpeg(filename=paste0("C:/work/qbcmod/DataOut/FuelZone_", scn, ".jpg"))
-ggplot(data=fuel, aes(x=year, y=pct, colour=zone, linetype=type)) + 
-  geom_line(size=1.2) + facet_wrap(~zone) + theme_classic() + scale_color_brewer(palette="Set1")
-dev.off()
+
+# fr <- read.table(paste0("outputs/", scn, "/FireRegime.txt"), header=T)
+# fr.indx <- select(fr, year, zone, indx.combust, indx.combust.burnt) %>% 
+#   pivot_longer(indx.combust:indx.combust.burnt)
+# jpeg(filename=paste0("C:/work/qbcmod/DataOut/IndxCombust_", scn, ".jpg"))
+# ggplot(data=fr.indx, aes(x=year, y=value, colour=zone, linetype=name)) + 
+#   geom_line(size=1.2) + facet_wrap(~zone) + theme_classic() + scale_color_brewer(palette="Set1")
+# dev.off()
 
 
 
