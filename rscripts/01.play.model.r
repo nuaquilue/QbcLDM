@@ -6,15 +6,19 @@ scn.name <- "Test_nothing45"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
-time.horizon <- 2100-2020
+plot.fires <- T
+time.horizon <- 5 #2100-2020
 clim.scn <- "rcp45"
+wflam <- 1
+wwind <- 0
 is.wildfires <- T
 is.sbw <- F
-is.clearcut <- T
-is.partialcut <- T
+is.clearcut <- F
+is.partialcut <- F
 replanif <- 1
-dump(c("nrun",  "write.maps", "time.horizon", "clim.scn", "is.wildfires", "is.sbw", 
-       "is.clearcut", "is.partialcut", "replanif"), 
+th.small.fire <- 1000 ## all small
+dump(c("nrun",  "write.maps", "plot.fires", "time.horizon", "clim.scn", "is.wildfires", "is.sbw", 
+       "is.clearcut", "is.partialcut", "replanif", "th.small.fire", "wflam", "wwind"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 landscape.dyn(scn.name)
 
@@ -24,12 +28,17 @@ library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
 scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj1")
-for(i in 31){
+for(i in 7:9){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general
-  nrun <- scenarios$nrun[i]
+  nrun <- 1# scenarios$nrun[i]
   write.maps <- F
+  plot.fires <- F
+  ## fire parmeters
+  wflam <- 1
+  wwind <- 0
+  rpb <- scenarios$rpb[i]
   ## processes
   is.wildfires <- as.logical(scenarios$is.wildfires[i])
   is.sbw <- as.logical(scenarios$is.sbw[i])
@@ -42,8 +51,8 @@ for(i in 31){
   clim.scn <- ifelse(scenarios$clim.scn[i]=="NA", NA, scenarios$clim.scn[i])
   th.small.fire <- scenarios$th.small.fire[i]
   replanif <- 1
-  dump(c("nrun", "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
-         "is.fuel.modifier", "is.clima.modifier", "clim.scn", "th.small.fire", "replanif"), 
+  dump(c("nrun", "write.maps", "plot.fires", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
+         "is.fuel.modifier", "is.clima.modifier", "clim.scn", "th.small.fire", "replanif", "wflam", "wwind", "rpb"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
 }

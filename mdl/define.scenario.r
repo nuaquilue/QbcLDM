@@ -60,13 +60,13 @@ define.scenario <- function(scn.name){
                       # a empiric relation between ignitions and environmental / anthropic drivers.
   is.fuel.modifier <- T     # if T, fuels flammability modifies target burnt area
   is.clima.modifier <- T    # if T, SEP ratio modifies target burnt area
-  is.fuel.firesprd <- T
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
   rpb <- 0.3
-  pb.upper.th <- 0.75 # prob.burning >= th --> cell always burns
-  pb.lower.th <- -1 # prob.burning < th --> cell never burns
-  th.small.fire <- -1
+  pb.upper.th <- 1 # prob.burning >= th --> cell always burns
+  pb.lower.th <- 0 # prob.burning < th --> cell never burns
+  th.small.fire <- -1  # threshold that determines which fires are small vs. large to assign fuel categories
+                       # when -1, all forest types burnt at high intensity
   
   
   ## SPRUCE BUDWORM parameters:  

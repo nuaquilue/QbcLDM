@@ -1,4 +1,4 @@
-frz	type	size	baseline
+frz	type	size	flam
 NA	hardwood	small	0.1
 NA	pioneer	small	0.4
 NA	young.conif	small	0.4
