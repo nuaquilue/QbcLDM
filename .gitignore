@@ -12,3 +12,5 @@ developMB
 inputlyrs/*.zip
 *.xlsx
 rscripts/outs/*.*
+*.out
+*.sh

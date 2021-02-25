@@ -26,7 +26,7 @@ library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
 scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj2")
-for(i in 10:12){
+for(i in 17:20){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general
