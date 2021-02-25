@@ -55,18 +55,17 @@ define.scenario <- function(scn.name){
   fire.sizes <- read.table("inputfiles/FireSizes_Z6.txt", header=T)
   sep.zone <- read.table("inputfiles/SEPzone_Z6.txt", header=T)
   fuel.types.modif <- read.table("inputfiles/FuelTypeModif_Z6.txt", header=T)
-  pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static" for a spatial but static 
-                      # probability of fire ignition, or "dyn" for a dynamic probability of ignition derived from
-                      # a empiric relation between ignitions and environmental / anthropic drivers.
+  pigni.opt <- "rand" # Can be "rand" for random fire ignition probability, "static.exp" or "static.nexp" 
+                      # for a spatial but static probability of fire ignition
   is.fuel.modifier <- T     # if T, fuels flammability modifies target burnt area
   is.clima.modifier <- T    # if T, SEP ratio modifies target burnt area
   wflam <- 0.7 # Weight spp flammability in fire spread rate
   wwind <- 0.3 # Weight wind in fire spread rate
-  rpb <- 0.3
+  rpb <- 0.4
   pb.upper.th <- 1 # prob.burning >= th --> cell always burns
   pb.lower.th <- 0 # prob.burning < th --> cell never burns
-  th.small.fire <- -1  # threshold that determines which fires are small vs. large to assign fuel categories
-                       # when -1, all forest types burnt at high intensity
+  th.small.fire <- 50  # threshold in pixels that determines which fires are small vs. large to assign fuel categories
+                       # when it is -1, all forest types burnt at high intensity
   
   
   ## SPRUCE BUDWORM parameters:  
@@ -86,10 +85,9 @@ define.scenario <- function(scn.name){
   ## Replanning options facing natural disturbances
   a.priori <- 1  # proportion of AAC to harvest (between 0 and 1). Allows the constitution of a buffer 
                  # for attenuation of natural disturbance impacts on timber supply fluctuations.
-  replan <- TRUE  # recalculation of AAC level at each time step (TRUE, FALSE). If no, it is calculated only
-                 # once, during the first period
-  replanif <- 0  # when 1, timber supply calculation is done at each time step to readjust harvest level
-  # to consider changes in FMU age structure (caused by fire) (a posteriori approach)
+  replanif <- TRUE  # when TRUE, timber supply calculation (i.e. recalculation of AAC level) is done at each time step 
+                    # to readjust harvest level to consider changes in FMU age structure (caused by fire) (a posteriori approach).
+                    # If FALSE, AAC level it is calculated only once, durgin the first period
   timber.supply <- "area.based"
   lutte <- FALSE # TRUE = reboisement systématique des peuplements conifériens qui deviennent feuillus
                  # suite a une perturbation

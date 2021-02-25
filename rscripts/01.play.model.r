@@ -2,23 +2,21 @@
 rm(list=ls())
 # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scn.name <- "Test_nothing45"
+scn.name <- "TestFires_runif22_8neigh_mn8_mx12_nb3_flam"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
 plot.fires <- T
-time.horizon <- 5 #2100-2020
-clim.scn <- "rcp45"
+time.horizon <- 2100-2020
 wflam <- 1
 wwind <- 0
 is.wildfires <- T
-is.sbw <- F
 is.clearcut <- F
 is.partialcut <- F
-replanif <- 1
-th.small.fire <- 1000 ## all small
-dump(c("nrun",  "write.maps", "plot.fires", "time.horizon", "clim.scn", "is.wildfires", "is.sbw", 
-       "is.clearcut", "is.partialcut", "replanif", "th.small.fire", "wflam", "wwind"), 
+th.small.fire <- 50 ## -1 --> all same flammability
+pigni.opt <- "static.exp"
+dump(c("nrun", "write.maps", "plot.fires", "time.horizon", "is.wildfires", 
+       "is.clearcut", "is.partialcut", "th.small.fire", "wflam", "wwind", "pigni.opt"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 landscape.dyn(scn.name)
 
@@ -28,11 +26,11 @@ library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
 scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj1")
-for(i in 7:9){
+for(i in 7){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general
-  nrun <- 1# scenarios$nrun[i]
+  nrun <- 1 # scenarios$nrun[i]
   write.maps <- F
   plot.fires <- F
   ## fire parmeters
@@ -50,7 +48,7 @@ for(i in 7:9){
   ## scenario parameters
   clim.scn <- ifelse(scenarios$clim.scn[i]=="NA", NA, scenarios$clim.scn[i])
   th.small.fire <- scenarios$th.small.fire[i]
-  replanif <- 1
+  replanif <- as.logical(scenarios$replanif[i])
   dump(c("nrun", "write.maps", "plot.fires", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
          "is.fuel.modifier", "is.clima.modifier", "clim.scn", "th.small.fire", "replanif", "wflam", "wwind", "rpb"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
@@ -100,3 +98,20 @@ levelplot(sp.input$Temp, margin=FALSE, colorkey=T, par.settings=viridisTheme())
 levelplot(sp.input$Precip, margin=FALSE, colorkey=T, par.settings=viridisTheme())
 levelplot(sp.input$SoilType, margin=FALSE, colorkey=T, par.settings=magmaTheme())
 levelplot(sp.input$Exclus, margin=FALSE, colorkey=T, par.settings=magmaTheme())
+writeRaster(sp.input$SppGrp, "inputlyrs/tif/Spp_t0.tif", format="GTiff")
+
+
+########################## PLOT PROBABILITY OF IGNITION ##########################
+load("inputlyrs/rdata/land.rdata")
+load("inputlyrs/rdata/pigni_static.exp.rdata")
+load("inputlyrs/rdata/mask.rdata")
+aux <- data.frame(cell.id=land$cell.id[land$spp=="NonFor"], frz=land$frz[land$spp=="NonFor"], d=40)
+aux <- rbind(select(pigni,-p), aux) 
+aux$p <- exp(-0.02*aux$d)
+  # aux$pn <- 1/(1+exp(scales::rescale(aux$d, to=c(-3, 2), from=c(0,40))))
+aux <- aux[order(aux$cell.id),]
+
+PIGNI <- MASK
+PIGNI[!is.na(MASK[])] <- aux$p
+levelplot(PIGNI, margin=FALSE, colorkey=T, par.settings=magmaTheme())
+

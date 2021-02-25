@@ -111,7 +111,7 @@ landscape.dyn <- function(scn.name){
     
     
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
-    ## It will be used when the option "replan" is not activated, 
+    ## It will be used when the option "replanif" is not activated, 
     ## so recalculation of AAC level is only calculated once, during the first period
     ref.harv.level <- table(land$mgmt.unit)*NA
     
@@ -212,18 +212,18 @@ landscape.dyn <- function(scn.name){
 
       ## 3. HARVESTING
       ## 3.1. TIMBER SUPPLY CALCULATION
-      ## It is only done during the first period if replanning is not selected, otherwise, each time step
+      ## It is only done during the first period if replanning is FALSE, otherwise, it is calculated each time step
       ## AREA BASED
-      if((t==time.seq[1] | replanif==1) & timber.supply=="area.based" & is.clearcut & t %in% cc.schedule){
-          TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                                salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, t)
+      if((t==time.seq[1] | replanif) & timber.supply=="area.based" & is.clearcut & t %in% cc.schedule){
+          TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
+                                 ref.harv.level, km2.pixel, t)
           TS.PC.area <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
       }
 
       ## VOLUME BASED - in development
-      if((t==time.seq[1] | replanif==1) & timber.supply=="volume.based" & is.clearcut & t %in% cc.schedule){
-        TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                                   salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t, courbes)
+      if((t==time.seq[1] | replanif) & timber.supply=="volume.based" & is.clearcut & t %in% cc.schedule){
+        TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
+                                   harv.level, km2.pixel, t, courbes)
         TS.PC.vol <- timber.partial.volume(land, hor.plan, km2.pixel, pc.step, courbes)
       }
       

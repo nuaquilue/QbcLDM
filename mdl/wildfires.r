@@ -48,9 +48,9 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   
   ## Wind direction between neigbours
   ## Wind direction is coded as 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
-  # default.neigh <- data.frame(x=c(-1,1,805,-805,804,-806,806,-804),
-  #                             windir=c(270,90,180,0,225,315,135,45))
-  default.neigh <- data.frame(x=c(-1,1,ncol(MASK),-ncol(MASK)), windir=c(270,90,180,0))
+  default.neigh <- data.frame(x=c(-1,1,ncol(MASK),-ncol(MASK),ncol(MASK)-1,-(ncol(MASK)+1),ncol(MASK)+1,-(ncol(MASK)-1)),
+                              windir=c(270,90,180,0,225,315,135,45))
+  # default.neigh <- data.frame(x=c(-1,1,ncol(MASK),-ncol(MASK)), windir=c(270,90,180,0))
   default.nneigh <- nrow(default.neigh)
   
   ## Create a fuel data frame with types (according to Spp and Age): 1 - low, 2 - medium, and 3 - high
@@ -156,9 +156,13 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         ## while others will gain... on average the difference should be 0
         fire.target.area <- pmax(1, round(fire.target.size/km2.pixel))
       }
-      ## Do not target more than what remains to be burnt at the zone level
+      ## Do not target more than what remains to be burnt at the zone level. fire.target.area in pixels
       fire.target.area <- min(fire.target.area, zone.target.area-zone.ncell.burnt)
       fire.target.area
+      
+      ## For fire front selection
+      mn.ncell.ff <- ifelse(fire.target.area<=50, 8, 16) 
+      mx.ncell.ff <- ifelse(fire.target.area<=50, 12, 20) 
       
       ## Assign the main wind direction 
       ## Wind directions: 0-N, 45-NE, 90-E, 135-SE, 180-S, 225-SW, 270-W, 315-NE
@@ -179,7 +183,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
       step <- 1
       track.sprd <- rbind(track.sprd, data.frame(frz=izone, fire.id=fire.id, cell.id=fire.front, step=step,
                           flam=0, wind=0, sr=1, pb=1, burn=TRUE))
-      map$id[map$cell.id==fire.front] <- fire.id
+      map$id[map$cell.id==fire.front] <- 1 #fire.id
       map$step[map$cell.id==fire.front] <- step
       
       ## Start speading from active cells (i.e. the fire front)
@@ -199,8 +203,8 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
                     mutate(dif.wind=abs(windir-fire.wind),
                            wind=ifelse(dif.wind==0, 0, ifelse(dif.wind %in% c(45,315), 0.25, 
                                 ifelse(dif.wind %in% c(90,270), 0.5, ifelse(dif.wind %in% c(135,225), 0.75, 1)))),
-                           sr=wwind*wind+wflam*flam, pb=1+rpb*log(sr))  # or pb=1-exp(-sr) + runif(-rpb, rpb) as in MEDFIRE-II
-        neigh.id  
+                           sr=wwind*wind+wflam*flam, pb=1+rpb*log(sr))  
+        neigh.id$pb <- neigh.id$pb + runif(nrow(neigh.id), -0.2, 0.2)  # some randomness to get less geometric fire shapes 
         
         ## Get spread rate andcompute probability of burn and actual burn state (T or F):
         sprd.rate <- group_by(neigh.id, cell.id) %>% summarize(flam=max(flam), wind=max(wind), sr=max(sr), pb=max(pb)) 
@@ -222,21 +226,32 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         }
         
         ## Tring to really get exact fire.id!!
-        map$id[map$cell.id %in% sprd.rate$cell.id[sprd.rate$burn]] <- fire.id
+        map$id[map$cell.id %in% sprd.rate$cell.id[sprd.rate$burn]] <- 1 #fire.id
         map$step[map$cell.id %in% sprd.rate$cell.id[sprd.rate$burn]] <- step
+        
+        ## Mark the burnt and visit cells
+        burnt.cells <- c(burnt.cells, sprd.rate$cell.id[sprd.rate$burn])
+        visit.cells <- c(visit.cells, sprd.rate$cell.id)
         
         ## If at least there's a burn cell, continue, otherwise, stop
         if(!any(sprd.rate$burn))
           break
         
-        ## Mark the cells burnt and visit, and select the new fire front
-        ## 'mad' -> median absolute deviation
-        burnt.cells <- c(burnt.cells, sprd.rate$cell.id[sprd.rate$burn])
-        visit.cells <- c(visit.cells, sprd.rate$cell.id)
-        exclude.th <- min(max(sprd.rate$sr)-0.005, 
-                           rnorm(1,median(sprd.rate$sr[sprd.rate$burn])-mad(sprd.rate$sr[sprd.rate$burn])*1.5,
-                                 mad(sprd.rate$sr[sprd.rate$burn])/2))
-        fire.front <- sprd.rate$cell.id[sprd.rate$burn & sprd.rate$sr>=exclude.th]
+        ## Select the new fire front
+        nburn <- sum(sprd.rate$burn)        
+        if(nburn<=3)
+          fire.front <- sprd.rate$cell.id[sprd.rate$burn]
+        else if(nburn<=mn.ncell.ff){
+          # fire.front <- sprd.rate$cell.id[sprd.rate$burn]
+          fire.front <- sort(sample(sprd.rate$cell.id[sprd.rate$burn], rdunif(1, 3, nburn),
+                                    replace=F, prob=sprd.rate$pb[sprd.rate$burn]))
+        }
+        else{
+          z <- rdunif(1,mx.ncell.ff-5,mx.ncell.ff)
+          ncell.ff <- min(nburn*runif(1,0.5,0.7), z, na.rm=T)
+          fire.front <- sort(sample(sprd.rate$cell.id[sprd.rate$burn], round(ncell.ff), 
+                                    replace=F, prob=sprd.rate$pb[sprd.rate$burn]))  
+        }
         
         ## Increase area burnt (total and per fire)
         zone.ncell.burnt <- zone.ncell.burnt + sum(sprd.rate$burn)
@@ -283,9 +298,9 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     save(map, file=paste0(out.path, "/Maps_r", irun, "t", t, ".rdata"))
     MAP[!is.na(MASK[])] <- map$id
     writeRaster(MAP, paste0(out.path, "/FireIds_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
-    ## fire.step
-    MAP[!is.na(MASK[])] <- map$step
-    writeRaster(MAP, paste0(out.path, "/FireStep_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
+    # ## fire.step
+    # MAP[!is.na(MASK[])] <- map$step
+    # writeRaster(MAP, paste0(out.path, "/FireStep_r", irun, "t", t, ".tif"), format="GTiff", overwrite=T)
   }
   
   ## Return the index of burnt cells and the tracking data.frames
