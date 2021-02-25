@@ -23,8 +23,8 @@ landscape.dyn(scn.name)
 library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj1")
-for(i in 31){
+scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj2")
+for(i in 1:4){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general
@@ -32,7 +32,6 @@ for(i in 31){
   write.maps <- F
   ## processes
   is.wildfires <- as.logical(scenarios$is.wildfires[i])
-  is.sbw <- as.logical(scenarios$is.sbw[i])
   is.clearcut <- as.logical(scenarios$is.clearcut[i])
   is.partialcut <- as.logical(scenarios$is.partialcut[i])
   ## modifiers of target area
@@ -40,10 +39,13 @@ for(i in 31){
   is.clima.modifier <- as.logical(scenarios$is.clima.modifier[i])
   ## scenario parameters
   clim.scn <- ifelse(scenarios$clim.scn[i]=="NA", NA, scenarios$clim.scn[i])
-  th.small.fire <- scenarios$th.small.fire[i]
   replanif <- 1
-  dump(c("nrun", "write.maps", "is.wildfires", "is.sbw", "is.clearcut", "is.partialcut", 
-         "is.fuel.modifier", "is.clima.modifier", "clim.scn", "th.small.fire", "replanif"), 
+  th.small.fire <- scenarios$th.small.fire[i]
+  wflam <- scenarios$wflam[i]
+  wwind <- scenarios$wwind[i]
+  dump(c("nrun", "write.maps", "is.wildfires", "is.clearcut", "is.partialcut", 
+         "is.fuel.modifier", "is.clima.modifier", "clim.scn", "replanif",
+         "th.small.fire", "wflam", "wwind"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
 }
