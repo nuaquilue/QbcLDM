@@ -3,8 +3,8 @@
 ###
 ######################################################################################
 
-timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                          salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t, courbes){  
+timber.volume <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
+                           harv.level, km2.pixel, t, courbes){  
 
   cat("Timber supply even-aged stands in volume", "\n" )
              

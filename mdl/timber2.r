@@ -14,10 +14,6 @@
 ###   diff.prematurite  : a number of years before maturity (e.g. 80y). Defines the minimal age 
 ###                       of stands that can be salvage-logged (after fire)
 ###   hor.plan : length of the planning horizon when calculating sustained yield levels
-###   salvage.rate.event : Realistic maximal proportion of the mature forests that were burnt by a given fire event 
-###                        that can be salvage logged
-###   salvage.rate.FMU: Realistic maximal proportion of the harvested area that can be represneted by burnt stands
-###                  in a given FMU (to account for the fact that mills cannot take 100% burnt wood)
 ###   write.tbl.outputs : if TRUE
 ###   km2.pixel : number of km2 per pixel on the grid 
 ###   irun : the current replica (used when writing results)
@@ -31,8 +27,7 @@
 ###  Value >  A vector of the indexes of the harvested cells.
 ######################################################################################
 
-timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                    salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t){  
+timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, harv.level, km2.pixel, t){  
 
   cat("Timber supply even aged stands - area", "\n" )
              

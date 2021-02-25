@@ -92,6 +92,7 @@ landscape.dyn <- function(scn.name){
   track.fires <- data.frame(run=NA, year=NA, frz=NA, fire.id=NA, wind=NA, target.size=NA, burnt.size=NA)
   track.target <- data.frame(run=NA, year=NA, frz=NA, br=NA, brvar=NA, brfuel=NA, brclima=NA, target.area=NA)
   track.fuel <- data.frame(run=NA, year=NA, frz=NA, type=NA, pct=NA)
+  track.sprd <- data.frame(run=NA, year=NA, frz=NA, fire.id=NA, cell.id=NA, step=NA, flam=NA, wind=NA, sr=NA, pb=NA, burn=NA)
   track.burnt.fuel <- data.frame(run=NA, year=NA, frz=NA, type=NA, area=NA)
   track.cut <- data.frame(run=NA, year=NA,  mgmt.unit=NA, tot.inc=NA, even.age=NA, a.mat=NA, a.inc.burnt=NA, 
                            a.inc.mat.burnt=NA, a.inc.kill=NA, a.inc.mat.kill=NA, a.reg.fail.ex=NA, a.reg.fail.in=NA,
@@ -110,7 +111,7 @@ landscape.dyn <- function(scn.name){
     
     
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
-    ## It will be used when the option "replan" is not activated, 
+    ## It will be used when the option "replanif" is not activated, 
     ## so recalculation of AAC level is only calculated once, during the first period
     ref.harv.level <- table(land$mgmt.unit)*NA
     
@@ -128,8 +129,8 @@ landscape.dyn <- function(scn.name){
 
     
     ## Compute the baseline fuel at the fire zone level
-    fuels <- fuel.type(land, fuel.types.modif, NA)
-    baseline.fuel <- group_by(fuels, frz) %>% summarize(x=mean(baseline))
+    fuels <- fuel.type(land, fuel.types.modif, NA, NA)
+    baseline.fuel <- group_by(fuels, frz) %>% summarize(x=mean(flam))
     
     
     ## Record initial distributions:
@@ -182,19 +183,19 @@ landscape.dyn <- function(scn.name){
       ## 1. FIRE
       burnt.cells <- integer() 
       if(is.wildfires & t %in% fire.schedule){
-        fire.out <- wildfires(land, fire.regime, fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, 
-                              is.fuel.modifier, is.clima.modifier, is.fuel.firesprd, gcm.sep, clim.scn, km2.pixel, 
-                              t, ncol(MASK), th.small.fire)
+        fire.out <- wildfires(land, fire.regime, fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, plot.fires,
+                              wwind, wflam, rpb, is.fuel.modifier, is.clima.modifier, gcm.sep, clim.scn, km2.pixel, irun, t, MASK, th.small.fire)
         burnt.cells <- fire.out[[1]]
         if(length(burnt.cells)>0){
-          burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA)
+          burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA, NA)
           track.burnt.fuel <- rbind(track.burnt.fuel, data.frame(run=irun, year=t+year.ini,
-              group_by(burnt.fuels, frz, type) %>% summarize(area=length(baseline)*km2.pixel)))
+              group_by(burnt.fuels, frz, type) %>% summarize(area=length(flam)*km2.pixel)))
         }
         if(nrow(fire.out[[4]])>0){
           track.target <- rbind(track.target, data.frame(run=irun, year=t+year.ini, fire.out[[2]]))
           track.fire.regime <- rbind(track.fire.regime, data.frame(run=irun, year=t+year.ini, fire.out[[3]]))
           track.fires <- rbind(track.fires, data.frame(run=irun, year=t+year.ini, fire.out[[4]]))
+          track.sprd <- rbind(track.sprd, data.frame(run=irun, year=t+year.ini, fire.out[[5]]))
         }
         # Done with fires
         land$tsfire[land$cell.id %in% burnt.cells] <- 0
@@ -211,18 +212,18 @@ landscape.dyn <- function(scn.name){
 
       ## 3. HARVESTING
       ## 3.1. TIMBER SUPPLY CALCULATION
-      ## It is only done during the first period if replanning is not selected, otherwise, each time step
+      ## It is only done during the first period if replanning is FALSE, otherwise, it is calculated each time step
       ## AREA BASED
-      if((t==time.seq[1] | replanif==1) & timber.supply=="area.based" & is.clearcut & t %in% cc.schedule){
-          TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                                salvage.rate.event, salvage.rate.FMU, ref.harv.level, km2.pixel, t)
+      if((t==time.seq[1] | replanif) & timber.supply=="area.based" & is.clearcut & t %in% cc.schedule){
+          TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
+                                 ref.harv.level, km2.pixel, t)
           TS.PC.area <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
       }
 
       ## VOLUME BASED - in development
-      if((t==time.seq[1] | replanif==1) & timber.supply=="volume.based" & is.clearcut & t %in% cc.schedule){
-        TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, replan, 
-                                   salvage.rate.event, salvage.rate.FMU, harv.level, km2.pixel, t, courbes)
+      if((t==time.seq[1] | replanif) & timber.supply=="volume.based" & is.clearcut & t %in% cc.schedule){
+        TS.CC.vol <- timber.volume(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
+                                   harv.level, km2.pixel, t, courbes)
         TS.PC.vol <- timber.partial.volume(land, hor.plan, km2.pixel, pc.step, courbes)
       }
       
@@ -348,7 +349,7 @@ landscape.dyn <- function(scn.name){
       track.spp.firezone <- rbind(track.spp.firezone, data.frame(run=irun, year=t+year.ini, 
                                 group_by(land, frz, spp) %>% summarize(area=length(cell.id)*km2.pixel)))
       ## Fuel type distribution per fire zone
-      fuels <- fuel.type(land, fuel.types.modif, NA)
+      fuels <- fuel.type(land, fuel.types.modif, NA, NA)
       aux <- group_by(fuels, frz, type) %>% summarize(n=length(frz)) %>% 
              left_join(zone.size, by="frz") %>% mutate(pct=n/x) %>% select(-n, -x)
       track.fuel <- rbind(track.fuel, data.frame(run=irun, year=t+year.ini, aux))
@@ -362,7 +363,7 @@ landscape.dyn <- function(scn.name){
               group_by(bioclim.domain, potential.spp) %>% summarize(poor=sum(suit.clim==0)*km2.pixel, 
               med=sum(suit.clim==0.5)*km2.pixel, good=sum(suit.clim==1)*km2.pixel) 
       track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=t+year.ini, aux))
-      aux <- group_by(fuel.type(land, fuel.types.modif), frz) %>% summarize(x=mean(baseline))
+      aux <- group_by(fuel.type(land, fuel.types.modif, NA, NA), frz) %>% summarize(x=mean(flam))
       rm(suitab); rm(aux)
       
 
@@ -395,7 +396,8 @@ landscape.dyn <- function(scn.name){
     write.table(track.fire.regime[-1,], paste0(out.path, "/FireRegime.txt"), quote=F, row.names=F, sep="\t")  
     track.fires$rem <- track.fires$target.size-track.fires$burnt.size
     write.table(track.fires[-1,], paste0(out.path, "/Fires.txt"), quote=F, row.names=F, sep="\t")
-    write.table(track.burnt.fuel[-1,], paste0(out.path, "/BurntFuels.txt"), quote=F, row.names=F, sep="\t")  
+    write.table(track.burnt.fuel[-1,], paste0(out.path, "/BurntFuels.txt"), quote=F, row.names=F, sep="\t")
+    write.table(track.sprd[-1,], paste0(out.path, "/FireSprd.txt"), quote=F, row.names=F, sep="\t")  
   }
   write.table(track.spp.firezone[-1,], paste0(out.path, "/SppByFireZone.txt"), quote=F, row.names=F, sep="\t")
   write.table(track.fuel[-1,], paste0(out.path, "/FuelByFireZone.txt"), quote=F, row.names=F, sep="\t")

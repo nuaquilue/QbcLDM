@@ -1,4 +1,4 @@
-fuel.type <- function(land, fuel.types.modif, fire.target.area=NA){
+fuel.type <- function(land, fuel.types.modif, fire.target.area=NA, th.small.fire=NA){
   
   ## Fuel type according species and age
   fuel <- data.frame(cell.id=land$cell.id, frz=land$frz)
@@ -12,7 +12,7 @@ fuel.type <- function(land, fuel.types.modif, fire.target.area=NA){
   ## (extreme weather)
   ## fire.target.area is NA when the function is used to compute initial baseline fuel load at the zone level
   ## otherwise, fire.target.area is in pixels and small fires are those of size <= 200 km2 = 50 pixels
-  fire.cat <- ifelse(is.na(fire.target.area) | fire.target.area<=50, "small", "large")  
+  fire.cat <- ifelse(is.na(fire.target.area) | fire.target.area<=th.small.fire, "small", "large")  
                           
   ## Choose the modifiers according to fire.size.target
   modif <- fuel.types.modif[fuel.types.modif$size==fire.cat,-3] %>% filter(!is.na(frz))
