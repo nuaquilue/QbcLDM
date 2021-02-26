@@ -44,6 +44,10 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     load("inputlyrs/rdata/pigni_static.exp.rdata")
   if(pigni.opt=="static.nexp")
     load("inputlyrs/rdata/pigni_static.nexp.rdata")
+  if(pigni.opt=="light_static.exp")
+    load("inputlyrs/rdata/pigni_light_static.exp.rdata")
+  if(pigni.opt=="light_static.nexp")
+    load("inputlyrs/rdata/pigni_light_static.nexp.rdata")
   
   
   ## Wind direction between neigbours

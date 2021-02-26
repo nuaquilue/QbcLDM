@@ -9,34 +9,27 @@ plot(MAP, col=plasma(4))
 
 #################################### TARGET AREA TO BE BURNT  ############################################
 library(tidyverse)
-list.scn <- c("Scn_WF_NoCC.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_NoCC.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_NoCC.is.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP45.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP45.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP45.is.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP85.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP85.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_RCP85.is.fuel.modif_Both_FuelTypeBase")
-list.scn2 <- c("Scn_WF_TH_NoCC.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_NoCC.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_NoCC.is.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP45.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP45.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP45.is.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP85.is.clima.fuel.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP85.is.clima.modif_Both_FuelTypeBase",
-              "Scn_WF_TH_RCP85.is.fuel.modif_Both_FuelTypeBase")
-list.scn <- c(list.scn, list.scn2)
-clim <- c(rep("NoCC",3), rep("RCP45",3), rep("RCP85",3),rep("NoCC",3), rep("RCP45",3), rep("RCP85",3))
-modif <- c("both", "clima", "fuel", "both", "clima", "fuel", "both", "clima", "fuel",
-           "both", "clima", "fuel", "both", "clima", "fuel", "both", "clima", "fuel")
-harvest <- c(rep(F,9), rep(T,9))
+list.scn <- c("Scn_WF_NoCC_NoFlam",
+              "Scn_WF_NoCC_Flam",
+              "Scn_WF_NoCC_Flam_Wind",
+              "Scn_WF_rcp85_NoFlam",
+              "Scn_WF_rcp85_Flam",
+              "Scn_WF_rcp85_Flam_Wind",
+              "Scn_WF_NoCC_NoFlam_isfuel_isclima",
+              "Scn_WF_NoCC_Flam_isfuel_isclima",
+              "Scn_WF_NoCC_Flam_Wind_isfuel_isclima",
+              "Scn_WF_rcp85_NoFlam_isfuel_isclima",
+              "Scn_WF_rcp85_Flam_isfuel_isclima",
+              "Scn_WF_rcp85_Flam_Wind_isfuel_isclima")
+clim <- c(rep("NoCC",3), rep("RCP85",3),rep("NoCC",3),  rep("RCP85",3))
+sprd <- c("noflam", "flam", "flam.wind", "noflam", "flam", "flam.wind",
+          "noflam", "flam", "flam.wind", "noflam", "flam", "flam.wind")
+modif <- c(rep(F,6), rep(T,6))
 dta <- data.frame(run=NA, year=NA, frz=NA, br=NA, brvar=NA, brfuel=NA, 
-                  brclima=NA, target.area=NA, clim=NA, modif=NA, harvest=NA)
+                  brclima=NA, target.area=NA, clim=NA, sprd=NA, modif=NA)
 for(i in 1:length(list.scn)){
   br <- read.table(paste0("outputs/", list.scn[i], "/BurntRates.txt"), header=T)  %>% 
-        mutate(clim=clim[i], modif=modif[i], harvest=harvest[i])
+        mutate(clim=clim[i], sprd=sprd[i], modif=modif[i])
   dta <- rbind(dta, br)
 }              
 dta <- dta[-1,]
@@ -144,15 +137,19 @@ dev.off()
 
 
 #################################### PCT FUEL CLASSES per FIRE ZONE ####################################
-scn <- "Scn_WF_TH_RCP45_Both_FuelTypeBase"
+scn <- "Scn_NoCC"
+area.zone <- read.table(paste0("outputs/", scn, "/SppByFireZone.txt"), header=T) %>% 
+             filter(run==1, year==2020) %>% group_by(frz) %>% summarize(tot=sum(area))
+
 fuels <- read.table(paste0("outputs/", scn, "/FuelByFireZone.txt"), header=T) 
-data <- group_by(fuels, run, year, type) %>% summarize(pct=sum(pct)) %>% 
-        group_by(year, type) %>% summarise(pct=mean(pct))
-tiff(paste0("rscripts/outs/PctFuel_", scn, ".tiff"), width=300, heigh=300)
-ggplot(data, aes(x=year, y=pct, fill=type)) + 
+data <- left_join(fuels, area.zone, by="frz") %>% mutate(area=pct*tot) %>% 
+        group_by(run, year, type) %>% summarize(area=sum(area)) %>% 
+        group_by(year, type) %>% summarise(mn.area=mean(area))
+# tiff(paste0("DataOut/PctFuel_", scn, ".tif"), width=300, heigh=300)
+ggplot(data, aes(x=year, y=mn.area, fill=type)) + 
   geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
   theme_bw() + theme(legend.position="none") + ggtitle(substr(scn,5,90))
-dev.off()
+# dev.off()
 
 
 
@@ -162,7 +159,7 @@ dev.off()
 library(viridis)
 library(tidyverse)
 scn <- "Scn_WF_NoCC_Large_FuelTypeBase"
-scn <- "Scn_WF_NoCC_Small_FuelTypeBase"
+scn <- "TestFires_runif22_8neigh_mn8_mx12_nb3_flam_pigni"
 burnt.fuels <- read.table(paste0("outputs/", scn, "/BurntFuels.txt"), header=T) 
 all <- group_by(burnt.fuels, run, year) %>% summarize(tot=sum(area))
 data <- group_by(burnt.fuels, run, year, type) %>% summarize(area=sum(area)) %>% 
@@ -190,6 +187,50 @@ ggplot(data, aes(x=year, y=pct.burnt, fill=type)) +
   geom_area(alpha=1 , size=.5, colour="grey70") + scale_fill_viridis(discrete = T) +
   theme_bw() + theme(legend.position="none")+ ggtitle(substr(scn,5,90))
 dev.off()
+
+
+## Table
+list.scn <- c("Scn_WF_NoCC_NoFlam",
+              "Scn_WF_NoCC_Flam",
+              "Scn_WF_NoCC_Flam_Wind",
+              "Scn_WF_rcp85_NoFlam",
+              "Scn_WF_rcp85_Flam",
+              "Scn_WF_rcp85_Flam_Wind",
+              "Scn_WF_NoCC_NoFlam_isfuel_isclima",
+              "Scn_WF_NoCC_Flam_isfuel_isclima",
+              "Scn_WF_NoCC_Flam_Wind_isfuel_isclima",
+              "Scn_WF_rcp85_NoFlam_isfuel_isclima",
+              "Scn_WF_rcp85_Flam_isfuel_isclima",
+              "Scn_WF_rcp85_Flam_Wind_isfuel_isclima")
+clim <- c(rep("NoCC",3), rep("RCP85",3),rep("NoCC",3),  rep("RCP85",3))
+sprd <- c("noflam", "flam", "flam.wind", "noflam", "flam", "flam.wind",
+          "noflam", "flam", "flam.wind", "noflam", "flam", "flam.wind")
+modif <- c(rep(F,6), rep(T,6))
+dta <- data.frame(run=NA, year=NA, frz=NA, type=NA, area=NA, clim=NA, sprd=NA, modif=NA, scn=NA)
+for(i in 6:12){  #length(list.scn)
+  burnt.fuels <- read.table(paste0("outputs/", list.scn[i], "/BurntFuels.txt"), header=T)  %>% 
+           mutate(clim=clim[i], sprd=sprd[i], modif=modif[i], scn=list.scn[i])
+  dta <- rbind(dta, burnt.fuels)
+}              
+dta <- dta[-1,]
+
+
+all <- group_by(dta, scn, run) %>% summarize(tot=sum(area))
+data <- group_by(dta, scn, run, type) %>% summarize(area=sum(area)) %>% 
+  left_join(all, by=c("scn", "run")) %>% mutate(pct=area/tot*100) %>% 
+  group_by(scn,  type) %>% summarise(pct.burnt=mean(pct)) %>% 
+  pivot_wider(names_from=type, values_from=pct.burnt)
+data
+
+
+## burnt per fire zone
+scn <- "TestFires_runif22_8neigh_mn8_mx12_nb3_flam_pigni_light"
+burnt.fuels <- read.table(paste0("outputs/", scn, "/BurntFuels.txt"), header=T) 
+zone.area <- read.table(paste0("outputs/", scn, "/SppByFireZone.txt"), header=T) %>% 
+             filter(run==1,year==2020) %>% group_by(frz) %>% summarize(area.zone=sum(area)); zone.area
+burnt.frz <- group_by(burnt.fuels, frz, run) %>% summarise(area=sum(area)) %>% 
+             left_join(zone.area, by="frz") %>% mutate(pct=100*area/area.zone) %>% 
+             group_by(frz) %>% summarise(area=mean(area), area.zone=mean(area.zone), pct=mean(pct)); burnt.frz
 
 
 

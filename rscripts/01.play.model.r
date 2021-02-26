@@ -2,20 +2,21 @@
 rm(list=ls())
 # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scn.name <- "TestFires_runif22_8neigh_mn8_mx12_nb3_flam"
+scn.name <- "TestTime"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
-plot.fires <- T
+plot.fires <- F
 time.horizon <- 2100-2020
-wflam <- 1
-wwind <- 0
+wflam <- 0.7
+wwind <- 0.3
 is.wildfires <- T
-is.clearcut <- F
-is.partialcut <- F
+is.clearcut <- T
+is.partialcut <- T
+replanif <- T
 th.small.fire <- 50 ## -1 --> all same flammability
-pigni.opt <- "static.exp"
-dump(c("nrun", "write.maps", "plot.fires", "time.horizon", "is.wildfires", 
+pigni.opt <- "light_static.exp"
+dump(c("nrun", "write.maps", "plot.fires", "time.horizon", "is.wildfires", "replanif",
        "is.clearcut", "is.partialcut", "th.small.fire", "wflam", "wwind", "pigni.opt"), 
      paste0("outputs/", scn.name, "/scn.custom.def.r"))
 landscape.dyn(scn.name)
@@ -101,16 +102,22 @@ writeRaster(sp.input$SppGrp, "inputlyrs/tif/Spp_t0.tif", format="GTiff")
 
 
 ########################## PLOT PROBABILITY OF IGNITION ##########################
+library(viridis)
+library(rasterVis)
+library(tidyverse)
 load("inputlyrs/rdata/land.rdata")
-load("inputlyrs/rdata/pigni_static.exp.rdata")
+load("inputlyrs/rdata/pigni_light_static.exp.rdata")
 load("inputlyrs/rdata/mask.rdata")
 aux <- data.frame(cell.id=land$cell.id[land$spp=="NonFor"], frz=land$frz[land$spp=="NonFor"], d=40)
 aux <- rbind(select(pigni,-p), aux) 
-aux$p <- exp(-0.02*aux$d)
+aux$p <- exp(-0.05*aux$d)
   # aux$pn <- 1/(1+exp(scales::rescale(aux$d, to=c(-3, 2), from=c(0,40))))
 aux <- aux[order(aux$cell.id),]
-
+# plot
 PIGNI <- MASK
 PIGNI[!is.na(MASK[])] <- aux$p
 levelplot(PIGNI, margin=FALSE, colorkey=T, par.settings=magmaTheme())
-
+writeRaster(PIGNI, "C:/WORK/QBCMOD/DataOut/ProbIgni_lightfires_exp05.tif", format="GTiff")
+# build and save
+source("mdl/build.pigni.r")
+build.pigni("C:/WORK/QBCMOD/", lambda=0.05, first.time=F)
