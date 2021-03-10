@@ -1,4 +1,4 @@
-build.pigni <- function(work.path, lambda=0, r=1, first.time=F){
+build.pigni <- function(work.path, lambda=0, first.time=F){
   
   library(rgdal)
   
@@ -14,16 +14,16 @@ build.pigni <- function(work.path, lambda=0, r=1, first.time=F){
   buff <- data.frame(points)
   for(i in c("05", 10, 20, 30)){   
     if(first.time){
-      BUFF <- readOGR(paste0(work.path, "DataIn/Buffers/Buff", i, "K.shp"))  #Kall
+      BUFF <- readOGR(paste0("C:/WORK/QBCMOD/DataIn/Buffers/Buff", i, "Klight.shp"))  #Kall
       # Change cartographic projection
       BUFFp <- spTransform(BUFF, CRS("+proj=lcc +lat_1=46 +lat_2=60 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 
                                 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
       # Overlap point and polygons
       aux <- over(points, BUFFp)
-      save(aux, file=paste0("C:/WORK/QBCMOD/DataIn/Buffers/OverlappLandBuff_", i, "K.rdata")) #Kall
+      save(aux, file=paste0("C:/WORK/QBCMOD/DataIn/Buffers/OverlappLandBuff_", i, "Klight.rdata")) #Kall
     }
     else
-      load(paste0("C:/WORK/QBCMOD/DataIn/Buffers/OverlappLandBuff_", i, "K.rdata"))
+      load(paste0("C:/WORK/QBCMOD/DataIn/Buffers/OverlappLandBuff_", i, "Klight.rdata"))
     buff$z <- !is.na(aux$Id) #!is.na(aux$BUFF_DIST)
     buff$z <- buff$z*as.numeric(i)
     names(buff)[ncol(buff)] <- paste0("r", i)
@@ -40,11 +40,11 @@ build.pigni <- function(work.path, lambda=0, r=1, first.time=F){
   
   ## Assign probability of ignition p=exp(-lamda* d), and save it
   pigni$p <- exp(-lambda*pigni$d)
-  save(pigni, file="inputlyrs/rdata/pigni_static.exp.rdata")
+  save(pigni, file="inputlyrs/rdata/pigni_light_static.exp.rdata")
   
   ## Assign probability of ignition p=1/(1+exp(d)), and save it
   pigni$p <- 1/(1+exp(scales::rescale(pigni$d, to=c(-3, 2), from=c(0,40))))
-  save(pigni, file="inputlyrs/rdata/pigni_static.nexp.rdata")
+  save(pigni, file="inputlyrs/rdata/pigni_light_static.nexp.rdata")
   
 }
 

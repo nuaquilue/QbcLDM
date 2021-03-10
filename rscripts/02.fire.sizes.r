@@ -76,3 +76,89 @@ gofstat(list(fit_ln, fit_wb, fit_gm))
 
 plot.legend <- c("Weibull", "lognormal", "gamma")
 denscomp(list(fit_wb, fit_gm, fit_ln), legendtext = plot.legend)
+
+
+
+################### GENERATE FIRE SIZE DISTRIBUTIONS ###################
+load(file="inputlyrs/rdata/land.rdata")
+fire.regime <-  read.table("inputfiles/FireRegime_Z6.txt", header=T)
+fire.sizes <- read.table("inputfiles/FireSizes_Z6.txt", header=T)
+sep.zone <- read.table("inputfiles/SEPzone_Z6.txt", header=T)
+km2.pixel <- 4
+time.step <- 5
+time.horizon <- 2100-2020
+time.seq <- seq(time.step, time.horizon, time.step) 
+# clim.scn <- NA
+clim.scn <- "rcp85"
+nrun <- 100
+result <- data.frame(run=NA, year=NA, frz=NA, target.zone=NA, fire.id=NA, target.fire=NA)
+for(irun in 1:nrun){
+  for(t in time.seq){
+    for(izone in paste0("Z", sample(1:6, 6, replace=FALSE))){
+      
+      ## Determine target area per fire zone
+      baseline.area <- time.step*sum(land$frz==izone)/fire.regime$fri[fire.regime$frz==izone]
+      zone.target.area <- rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)  
+      if(!is.na(clim.scn)){
+        sep.zone.cc <- filter(sep.zone, GCM=="MIROC_ESM_CHEM_10km", RCP==clim.scn)
+        # if(t<=20) # 2020 to 2040
+        #   aux.track$brclima <- aux.track$brvar*1
+        if(t>20 & t<=50){ # 2040 to 2070
+          zone.target.area <- zone.target.area*sep.zone.cc$rSEP1[sep.zone.cc$frz==izone]
+          # aux.track$brclima <- aux.track$brvar*sep.zone.cc$rSEP1[sep.zone.cc$frz==izone]
+        }
+        if(t>50){ # 2070 to 2100
+          zone.target.area <- zone.target.area*sep.zone.cc$rSEP2[sep.zone.cc$frz==izone]
+          # aux.track$brclima <- aux.track$brvar*sep.zone.cc$rSEP2[sep.zone.cc$frz==izone]
+        }
+      }
+      ## Round it to have entire cells (in km2)
+      zone.target.size <- round(zone.target.area*km2.pixel)
+      
+      ## Determine target area per fire
+      fs.dist <- filter(fire.sizes, frz==izone) %>% select(-frz)
+      area.burnt <- 0
+      fire.id <- 0
+      while(area.burnt < zone.target.size){   ## condition in pixels
+        ## ID for each fire event
+        fire.id <- fire.id+1
+        ## Determine potential area of the fires (i.e. the target area) in km2
+        ## Fire size is drawn from an discrete distribution defined in classes of 50 km2 
+        fire.class <- sample(1:nrow(fs.dist), 1, replace=F, p=fs.dist$p) 
+        fire.target.size <- min(rdunif(1, fs.dist$lower[fire.class], fs.dist$upper[fire.class]), 
+                                  fire.regime$max[fire.regime$zone==izone])
+        area.burnt <- area.burnt+fire.target.size
+        result <- rbind(result, data.frame(run=irun, year=t+2020, frz=izone, target.zone=zone.target.size,
+                                           fire.id=fire.id, target.fire=fire.target.size))
+      }
+    }
+  }
+}
+result <- result[-1,]
+
+## plot histo
+ggplot(data=result, aes((target.fire))) + geom_histogram(bins=20) + 
+  facet_wrap(~frz,  scales="free_y") + theme_classic() 
+
+## Count number of fires per each size class
+distrib <- data.frame(frz=NA, run=NA, X1=NA, X2=NA, X3=NA, X4=NA, X5=NA, X6=NA)
+for(izone in paste0("Z", sample(1:6, 6, replace=FALSE))){
+  for(irun in 1:nrun){
+    a <- filter(result, frz==izone, run==irun) 
+    count <- cut(a$target.fire, breaks=c(0,50,100,200,500,1000,2000))
+    distrib <- rbind(distrib, data.frame(frz=izone, run=irun, t(as.numeric(table(count)))))
+  }
+}
+distrib <- distrib[-1,]
+a <- group_by(distrib, frz) %>% summarise(x50=mean(X1), x100=mean(X2), x200=mean(X3), 
+     x500=mean(X4), x1000=mean(X5), x2000=mean(X6)) %>% mutate(tot=x50+x100+x200+x500+x1000+x2000); a
+b <- a 
+b[,c(2:7)] <- round(100*b[,c(2:7)]/b$tot,1) 
+select(b, -tot)
+
+
+## number fires / zone area
+scn <- "TestFires"
+zone.area <- read.table(paste0("outputs/", scn, "/SppByFireZone.txt"), header=T) %>% 
+  filter(run==1,year==2020) %>% group_by(frz) %>% summarize(area.zone=sum(area)); zone.area
+select(a, frz, tot) %>% left_join(zone.area, by="frz") %>% mutate(n=100*tot/area.zone)

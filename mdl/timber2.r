@@ -42,7 +42,7 @@ timber2 <- function(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a
   units <- sort(unique(land2$mgmt.unit[!is.na(land2$mgmt.unit)]))
   
   # Harvest rates have to be calculated separately for each management unit:
-  unit=units[6] # for testing  unit="2662"
+  unit=units[4] # for testing  unit="2662"
   for(unit in units){  
     # cat(unit, "\n")
     # Separate locations that can be harvested (included) from those that cannot due to environmental or 

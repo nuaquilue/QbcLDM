@@ -13,3 +13,7 @@ inputlyrs/*.zip
 inputlyrs/asc
 *.xlsx
 rscripts/outs/*.*
+*.out
+*.sh
+*.py
+rscripts/00*
