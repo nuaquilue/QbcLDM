@@ -2,7 +2,7 @@
 rm(list=ls())
 # setwd("C:/Users/boumav/Desktop/LandscapeDynamics3_nu/rscripts")
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scn.name <- "TestTime"
+scn.name <- "TestTS"
 define.scenario(scn.name)
 nrun <- 1
 write.maps <- F
@@ -26,8 +26,8 @@ landscape.dyn(scn.name)
 library(readxl)
 rm(list=ls())
 source("mdl/define.scenario.r"); source("mdl/landscape.dyn.r")  
-scenarios <- read_xlsx("Scenarios.xlsx", sheet="Obj2")
-for(i in 17:20){
+scenarios <- read_xlsx("Scenarios.xlsx", sheet="ScnPaper")
+for(i in 17){
   scn.name <- scenarios$scn.name[i]
   define.scenario(scn.name)
   ## general
@@ -48,9 +48,10 @@ for(i in 17:20){
   wflam <- scenarios$wflam[i]
   wwind <- scenarios$wwind[i]
   pigni.opt <- scenarios$pigni[i]
+  target.old.pct <- scenarios$target.old.pct[i]
   dump(c("nrun", "write.maps", "plot.fires", "is.wildfires", "is.clearcut", "is.partialcut", 
          "is.fuel.modifier", "is.clima.modifier", "clim.scn", "replanif",
-         "th.small.fire", "wflam", "wwind", "pigni.opt"), 
+         "th.small.fire", "wflam", "wwind", "pigni.opt", "target.old.pct"), 
        paste0("outputs/", scn.name, "/scn.custom.def.r"))
   landscape.dyn(scn.name)
 }

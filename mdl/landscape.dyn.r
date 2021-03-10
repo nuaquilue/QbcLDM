@@ -218,6 +218,7 @@ landscape.dyn <- function(scn.name){
           TS.CC.area <- timber2(land, cc.step, target.old.pct, diff.prematurite, hor.plan, a.priori, 
                                  ref.harv.level, km2.pixel, t)
           TS.PC.area <- timber.partial(land, hor.plan, km2.pixel, pc.step)  
+          # write.table(TS.CC.area, paste0(out.path, "/TimberSupply_", t, ".txt"), quote=F, row.names=F, sep="\t")
       }
 
       ## VOLUME BASED - in development
