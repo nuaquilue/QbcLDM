@@ -10,6 +10,7 @@ inputfiles/old
 inputfiles/invented
 developMB
 inputlyrs/*.zip
+inputlyrs/asc
 *.xlsx
 rscripts/outs/*.*
 compute.canada/
