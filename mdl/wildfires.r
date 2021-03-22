@@ -22,7 +22,8 @@
 
 
 wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, fuel.types.modif, pigni.opt, plot.fires,
-                      wwind, wflam, rpb, is.fuel.modifier, is.clima.modifier, gcm.sep, clim.scn, km2.pixel, irun, t, MASK, th.small.fire){
+                      wwind, wflam, rpb, is.fuel.modifier, is.clima.modifier, gcm.sep, clim.scn, km2.pixel, 
+                      irun, t, MASK, th.small.fire, mem.feux){
   
   cat("Wildfires", "\n" )
   options(warn=-1)  # to avoid unecessary warnings about "frz" being factor of character when joining
@@ -78,6 +79,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   track.fire <- data.frame(frz=NA, fire.id=NA, wind=NA, target.size=NA,  burnt.size=NA)
   track.sprd <- data.frame(frz=NA, fire.id=NA, cell.id=NA, step=NA, flam=NA, wind=NA, sr=NA, pb=NA, burn=NA)
   
+  
   ## Create a random permuation of the Fire Regime Zones to not burn FRZ always in the same order
   ## Start burn until target area per fire zone is not reached 
   izone <- "Z3"
@@ -93,7 +95,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     aux.track$br <- baseline.area
     
     ## 2. Add random inter-period variability 
-    zone.target.area <- rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)
+    zone.target.area <- baseline.area # rnorm(1, unlist(baseline.area), unlist(baseline.area)*0.1)
     aux.track$brvar <- zone.target.area
     
     ## 3. Modify target area based on changes in landscape-level fuel load
@@ -125,9 +127,13 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     ## Round it to have entire cells
     zone.target.area <- round(zone.target.area)
     
-    ## Record
-    cat(paste("Zone:", izone, "- Target area (cells):", zone.target.area), "\n")
+    # modif
     
+    bid <- zone.target.area - mem.feux[as.numeric(substr(izone,2,2))]
+    zone.target.area <- bid
+
+    ## Record
+    cat(paste("Zone:", izone, "- Target area (cells):", zone.target.area, "\n"))
     
     ## For each fire zone, look for the associated fire size distribution; and 
     ## only keep potential ignitions cells in the fire zone
@@ -161,7 +167,7 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
         fire.target.area <- pmax(1, round(fire.target.size/km2.pixel))
       }
       ## Do not target more than what remains to be burnt at the zone level. fire.target.area in pixels
-      fire.target.area <- min(fire.target.area, zone.target.area-zone.ncell.burnt)
+      #fire.target.area <- min(fire.target.area, zone.target.area-zone.ncell.burnt)
       fire.target.area
       
       ## For fire front selection
@@ -279,8 +285,8 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
     # if(print.maps)
     #   save(map, file=paste0(out.path, "/Maps_r", irun, "t", t, "_frz", izones, ".rdata"))
       
+    mem.feux[as.numeric(substr(izone, 2, 2))] <- zone.ncell.burnt - zone.target.area
   } #for 'zone'
-  
     
   ## TRACKING
   track.target <- track.target[-1,]
@@ -313,6 +319,6 @@ wildfires <- function(land, fire.regime, fire.sizes, sep.zones, baseline.fuel, f
   ## I will need to find the mistake and solve it, but by now I simply retrun unique(burnt.cells).
   ## However, in such cases length(burnt.cells)*km2.pixel < aburnt at the zone level
   return(list(burnt.cells=unique(burnt.cells), track.target=track.target, track.regime=track.regime, 
-              track.fire=track.fire, track.sprd=track.sprd[-1,]))  
+              track.fire=track.fire, track.sprd=track.sprd[-1,],mem.feux=mem.feux))  
   
 }

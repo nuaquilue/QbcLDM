@@ -12,7 +12,4 @@ developMB
 inputlyrs/*.zip
 *.xlsx
 rscripts/outs/*.*
-*.out
-*.sh
-*.py
-rscripts/00*
+compute.canada/

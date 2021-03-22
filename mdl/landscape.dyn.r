@@ -17,8 +17,8 @@ landscape.dyn <- function(scn.name){
     library(RANN)
     # library(dplyr)
     library(tidyverse)
-    # options(dplyr.summarise.inform = FALSE)
-    require (reshape)
+     options(dplyr.summarise.inform = FALSE)
+    library(reshape2)
   })
   source("mdl/buffer.mig4.r") 
   source("mdl/forest.transitions.r")  
@@ -100,7 +100,6 @@ landscape.dyn <- function(scn.name){
   track.spp.cut <- data.frame(run=NA, year=NA,  mgmt.unit=NA, spp=NA, spp.ccut=NA, spp.ccut.vol=NA,
                                   spp.pcut=NA, spp.pcut.vol=NA)
   track.vol <- data.frame(run=NA, year=NA,  mgmt.unit=NA, spp=NA, DistType=NA, x=NA)
-    
   
   ## Start the simulations
   irun <- 1
@@ -109,6 +108,8 @@ landscape.dyn <- function(scn.name){
     ## Load dynamic state variables 
     load(file="inputlyrs/rdata/land.rdata")
     
+     ## ajuste temperature
+    land$temp <- land$temp/10   
     
     ## Matrix to save the sustained yield level at time t = 0, after clear.cut has happeened
     ## It will be used when the option "replanif" is not activated, 
@@ -155,10 +156,14 @@ landscape.dyn <- function(scn.name){
     track.suit.class <- rbind(track.suit.class, data.frame(run=irun, year=0, aux))
     rm(suitab); rm(aux)
     
+    ## feux: enregistrer les superficies a soustraire durant la période suivante
+    mem.feux <- rep(0,dim(zone.size)[1])
+    
+    
     ## Start 
     t <- 5  
     for(t in time.seq){
-      
+      print(mean(land$temp))
       ## Track scenario, replicate and time step
       print(paste0("scn: ", scn.name, " - run: ", irun, "/", nrun, " - time: ", year.ini+t-time.step, " to ", t+year.ini))
       
@@ -169,11 +174,11 @@ landscape.dyn <- function(scn.name){
       ## The first time step (t=5) we start with climate 2020-2025
       if(!is.na(clim.scn) & t < time.horizon){
         # Temp
-        aux <- cc.temp[,c(1,1+which(time.seq==t))] 
+        aux <- cc.temp[,c(1,3+which(time.seq==t))] 
         names(aux) <- c("cell.id", "temp")
         land <- select(land, -temp) %>% left_join(aux, by="cell.id")
         # Precip
-        aux <- cc.prec[,c(1,1+which(time.seq==t))]
+        aux <- cc.prec[,c(1,3+which(time.seq==t))]
         names(aux) <- c("cell.id", "prec")
         land <- select(land, -prec) %>% left_join(aux, by="cell.id")
        }
@@ -184,7 +189,7 @@ landscape.dyn <- function(scn.name){
       burnt.cells <- integer() 
       if(is.wildfires & t %in% fire.schedule){
         fire.out <- wildfires(land, fire.regime, fire.sizes, sep.zone, baseline.fuel, fuel.types.modif, pigni.opt, plot.fires,
-                              wwind, wflam, rpb, is.fuel.modifier, is.clima.modifier, gcm.sep, clim.scn, km2.pixel, irun, t, MASK, th.small.fire)
+                              wwind, wflam, rpb, is.fuel.modifier, is.clima.modifier, gcm.sep, clim.scn, km2.pixel, irun, t, MASK, th.small.fire, mem.feux)
         burnt.cells <- fire.out[[1]]
         if(length(burnt.cells)>0){
           burnt.fuels <- fuel.type(filter(land, cell.id %in% burnt.cells), fuel.types.modif, NA, NA)
@@ -199,8 +204,9 @@ landscape.dyn <- function(scn.name){
         }
         # Done with fires
         land$tsfire[land$cell.id %in% burnt.cells] <- 0
+        mem.feux <- fire.out$mem.feux
       }
-      
+      print(mem.feux)
         
       ## 2. SBW (under development)
       kill.cells <- integer()
